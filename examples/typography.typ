@@ -1,6 +1,13 @@
 #import "../lib.typ": template, theorem
 #show: template
 = 标题 Heading
+= 数学标题 $f(x) = alpha x^2 + beta$
+正文公式 $f(x) = alpha x^2 + beta$。
+
+== 二级标题 $sum_(i=1)^n x_i$
+=== 三级标题 $bold(v) in RR^n$
+==== 四级标题 $A x = b$
+
 正文 Latin，中文。 *加粗 Bold* _强调 Italic_
 
 #strong[加粗 #emph[强调 Both 中文]]

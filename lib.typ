@@ -3,21 +3,20 @@
 /// Common imports and usage (adjust the path relative to your document):
 /// ```typst
 /// #import "../appx/theme.typ": template, sidenote, theorem, lemma, corollary,
-///   definition, proof, fletcher, diagram, node, edge,
-///   equate-lines, physica
+///   definition, proof, fletcher, diagram, node, edge
 /// #show: template.with(theme: "light", layout: "portrait")
 /// #set document(title: "Notes", keywords: ("robotics",))
 /// ```
 ///
 /// Feature index:
 /// - `template(theme: "light", layout: "portrait", body)`: page layout and styling.
+/// - `front-matter(body)`: introductory content with unnumbered headings.
 /// - `sidenote(body, aside, side-image: none)`: body with a right-hand sidenote and optional image.
+/// - `footnote(body)`: a native PDF footnote and an inline HTML disclosure.
 /// - `theorem` / `lemma` / `corollary`: theorem, lemma, and corollary environments.
 /// - `definition` / `proof`: definition and proof environments.
 /// - `diagram(..args)`: theme-aware Fletcher diagrams with the native API.
 /// - `fletcher` / `node` / `edge`: the Fletcher module and native primitives.
-/// - `equate-lines(body, ...)`: multiline equations with chapter numbers and lettered subnumbers.
-/// - `physica`: physics utilities module; use `physica.xxx`.
 ///
 /// HTML export: `typst compile --features html path/to/note.typ note.html`.
 /// The recommended interfaces are listed above; other top-level names remain importable.
@@ -28,10 +27,8 @@
     thmproof as _thm_proof,
     thmrules as _thm_rules,
 )
-#import "@preview/physica:0.9.8" as physica
 #import "@preview/fletcher:0.5.8" as fletcher
-#import "@preview/equate:0.3.3": equate as _equate
-#import "html.typ" as _html
+#import "html/html.typ" as _html
 
 #assert(
     sys.version >= version(0, 15, 0),
@@ -39,31 +36,35 @@
 )
 
 #let _code_fonts = (
-    "Fira Code",
-    "Cascadia Mono",
-    // Explicit CJK fallback keeps comments and string literals visually
-    // consistent instead of depending on the platform's default fallback.
+    "Iosevka",
     "Source Han Sans",
-    "Courier New",
+    "Source Han Sans SC",
 )
+
+// Accept regional Source Han names on Linux and Windows.
+// Missing glyphs fall back to other fonts registered with the compiler.
+#let _math_fonts = ("New Computer Modern Math",)
+#let _serif_fonts = ("Georgia", "Libertinus Serif", "New Computer Modern")
+#let _cjk_serif_fonts = ("Source Han Serif", "Source Han Serif SC")
+#let _cjk_sans_fonts = ("Source Han Sans", "Source Han Sans SC")
 
 // Each role owns both script paths; weights are (regular, strong).
 #let _typography = (
     body: (
-        latin: (font: ("Libertinus Serif", "Source Han Serif"), weights: (400, 700)),
-        cjk: (font: ("Source Han Serif"), weights: (500, 800)),
+        latin: (font: _serif_fonts + _cjk_serif_fonts, weights: (400, 700)),
+        cjk: (font: _cjk_serif_fonts, weights: (500, 800)),
     ),
     heading: (
-        latin: (font: ("Noto Sans", "Libertinus Sans", "Source Han Sans"), weights: (600, 800)),
-        cjk: (font: ("Source Han Sans"), weights: (600, 800)),
+        latin: (font: _cjk_sans_fonts, weights: (600, 800)),
+        cjk: (font: _cjk_sans_fonts, weights: (600, 800)),
     ),
     code: (
         latin: (font: _code_fonts, weights: (400, 700)),
-        cjk: (font: ("Source Han Sans"), weights: (400, 700)),
+        cjk: (font: _cjk_sans_fonts, weights: (400, 700)),
     ),
     table: (
-        latin: (font: ("Libertinus Serif", "Source Han Serif"), weights: (450, 700)),
-        cjk: (font: ("Source Han Serif"), weights: (500, 800)),
+        latin: (font: _serif_fonts + _cjk_serif_fonts, weights: (450, 700)),
+        cjk: (font: _cjk_serif_fonts, weights: (500, 800)),
     ),
 )
 
@@ -80,7 +81,7 @@
 
 #let _font_size = (
   tiny: 6.5pt,
-  code: 6pt,
+  code: 6.75pt,
   body: 8pt,
   // Match the HTML heading scale: 1.4x / 1.2x / 1.1x of body text.
   h1: 11.2pt,
@@ -167,7 +168,6 @@
     })
 }
 
-/// Body with a right-hand sidenote: `#sidenote[Body][Aside]`; `side-image` accepts an image path or content.
 #let _sidenote_content(content) = context {
     let equation-position = counter(math.equation).get()
     show math.equation: set math.equation(numbering: none)
@@ -175,6 +175,7 @@
     counter(math.equation).update(equation-position)
 }
 
+/// Body with a right-hand sidenote; `side-image` accepts a string, `path`, or image content.
 #let sidenote(body, aside, side-image: none) = context {
     let palette = _palette(_theme.get())
     let aside-text = if aside == [] {
@@ -188,7 +189,7 @@
     let aside-content = if side-image == none {
         aside-text
     } else {
-        let pinned-image = if type(side-image) == str {
+        let pinned-image = if type(side-image) in (str, path) {
             image(side-image, width: 100%)
         } else {
             block(width: 100%, {
@@ -210,9 +211,10 @@
     }
 
     let rendered-aside = _sidenote_content(aside-content)
-    _html.when-html(
-        () => _html.sidenote(body, rendered-aside),
-        () => block(
+    if target() == "html" {
+        _html.sidenote(body, rendered-aside)
+    } else {
+        block(
             width: 100%,
             breakable: true,
             grid(
@@ -227,8 +229,8 @@
                     rendered-aside,
                 ),
             ),
-        ),
-    )
+        )
+    }
 }
 
 /// Theorem environment: `#theorem[Theorem content]`.
@@ -275,89 +277,51 @@
     linebreak()
 }
 
-// Chapter-prefixed numbering shared by figures, tables, and equations.
-#let _chapter_numbering(parenthesized, styled, number, ..sub) = context {
-    let palette = _palette(_theme.get())
-    let chapter = counter(heading).get().first()
-    let suffix = if sub.pos().len() > 0 { numbering("a", sub.pos().first()) } else { "" }
-    let value = str(chapter) + "." + str(number) + suffix
-    let value = if parenthesized { "(" + value + ")" } else { value }
-
-    if not styled {
-        value
-    } else {
-    // Keep serif letterforms while reserving equal space for each sub-number letter.
-        show regex("[a-z]+"): it => {
-            it.text.clusters().map(letter => box(width: 0.55em, align(center, letter))).join()
-        }
-        text(
-            // Equation numbers use the math family so their numerals match
-            // the symbols beside them; figure and table numbers keep body text.
-            font: if parenthesized { "Libertinus Math" } else { _typography.body.latin.font },
-            size: _font_size.body,
-            fill: palette.muted,
-            number-type: "lining",
-            number-width: "tabular",
-            value,
-        )
-    }
+// Chapter-prefixed formats for paged figures and equations.
+#let _figure_numbering(number, ..sub) = context {
+    numbering("1.1a", counter(heading).get().first(), number, ..sub)
 }
 
-#let _equation_numbering = _chapter_numbering.with(true, true)
-#let _figure_numbering = _chapter_numbering.with(false, false)
+#let _equation_numbering(number) = context {
+    let palette = _palette(_theme.get())
+    let value = numbering("1.1", counter(heading).get().first(), number)
+    text(
+        font: _math_fonts,
+        size: _font_size.body,
+        fill: palette.muted,
+        number-type: "lining",
+        number-width: "tabular",
+        "(" + value + ")",
+    )
+}
 
-/// Multiline equations with chapter numbers and lettered subnumbers; disable with `sub-numbering: false`.
-/// Label each line with `#<label>` before its line break.
-#let equate-lines(
-    body,
-    numbering: _equation_numbering,
-    sub-numbering: true,
-    ..options,
-) = {
-    set math.equation(numbering: if numbering == auto { _equation_numbering } else { numbering })
-    _equate(body, sub-numbering: sub-numbering, ..options)
+// Native references resolve numbering in the target's context. Use plain text
+// here so equation-only parentheses and styling do not enter the reference.
+#let _numbered_ref(it) = context {
+    let target = it.element
+    if it.form != "normal" or target == none or not target.has("numbering") or target.numbering != _equation_numbering {
+        return it
+    }
+    let chapter = counter(heading).at(target.location()).first()
+    let number = counter(math.equation).at(target.location()).first()
+    let supplement = if it.supplement == auto { target.supplement } else { it.supplement }
+    if type(supplement) == function { supplement = supplement(target) }
+    link(target.location(), [#if supplement not in (none, []) [#supplement~]#numbering("1.1", chapter, number)])
 }
 
 // Paged output is the core renderer. HTML-specific compatibility rules and
-// package asset injection live in html.typ.
+// package asset injection live in html/html.typ.
 #let _paged_template(theme, layout, body) = context {
     let palette = _palette(theme)
     let landscape = layout == "landscape"
     let page-columns = if landscape { 2 } else { 1 }
 
-    set heading(numbering: (..numbers) => {
-        if numbers.pos().len() <= 3 {
-            numbering("1.1", ..numbers)
-        }
-    })
-    set footnote(numbering: "[a]")
-
-    set math.equation(numbering: _equation_numbering, supplement: [Eq.])
     set heading(supplement: [Sec.])
+    set math.equation(numbering: _equation_numbering, supplement: [Eq.])
     show figure.where(kind: image): set figure(supplement: [Fig.], numbering: _figure_numbering)
     show figure.where(kind: table): set figure(supplement: [Tab.], numbering: _figure_numbering)
-    show ref: it => context {
-        // Resolve the chapter at the target, including equate's per-line figures.
-        let target = it.element
-        if it.form == "normal" and target != none and target.has("numbering") and target.numbering == _equation_numbering {
-            let chapter = counter(heading).at(target.location()).first()
-            // The numbering function also runs inside refs; restore the surrounding text style.
-            let ref-size = text.size
-            let ref-font = text.font
-            let ref-fill = text.fill
-            show regex("\\([0-9]+\\.[0-9]+[a-z]*\\)"): match => {
-                text(
-                    font: ref-font,
-                    size: ref-size,
-                    fill: ref-fill,
-                    str(chapter) + "." + match.text.slice(1, -1).split(".").last(),
-                )
-            }
-            _equate(it)
-        } else {
-            _equate(it)
-        }
-    }
+    show ref: _numbered_ref
+    show math.equation: set text(font: _math_fonts)
 
     set page(
         paper: "a5",
@@ -386,7 +350,7 @@
     set text(font: _typography.body.latin.font)
 
     let paragraph-leading = 0.8em
-    // Match theme.css's 1rem block margin more closely at the compact body
+    // Match html/theme.css's 1rem block margin more closely at the compact body
     // size used by the paged template.
     let block-spacing = 1.4em
     set par(
@@ -394,6 +358,7 @@
         spacing: block-spacing,
     )
     show heading: it => context {
+        // Only equations restart per chapter; front-matter does not reset them.
         if it.level == 1 and it.numbering != none {
             counter(math.equation).update(0)
         }
@@ -407,6 +372,8 @@
         ).at(level - 1) }
 
         show: _typeset.with("heading", heading-cjk-size: size * 94%)
+        // Use mathematical bold glyphs while preserving italic variables.
+        show math.equation: math.bold
 
         set text(
             size: size,
@@ -460,9 +427,12 @@
         set text(
             size: _font_size.code,
             fill: palette.code-fg,
+            // Raw lines use a baseline bottom edge; reserve 0.8em above it.
+            top-edge: 0.8em,
+            bottom-edge: 0pt,
         )
-        // Keep code lines compact; tie outer spacing to the surrounding prose.
-        set par(leading: 0.6em, spacing: 0.6em)
+        // Use 1.7x code line spacing; keep outer spacing tied to surrounding prose.
+        set par(leading: 0.9em, spacing: 0.6em)
         let code-spacing = _font_size.body
 
         block(
@@ -499,6 +469,7 @@
         radius: 2.5pt,
         fill: palette.code-bg,
         text(
+            size: _font_size.code,
             fill: palette.code-fg,
             it,
         ),
@@ -559,27 +530,28 @@
     // Footnotes restart on each page: superscript [a]; entries: [a] content.
     show footnote.entry: it => context {
         let note = it.note
-        let number = counter(footnote).at(note.location()).first()
         block[
-            #link(note.location(), numbering(note.numbering, number))#h(0.3em)#note.body
+            #link(note.location(), counter(footnote).display(note.numbering, at: note.location()))#h(0.3em)#note.body
         ]
     }
 
-    // Scale prose without applying a second reduction inside headings.
-    show _cjk_text: it => context {
-        let fonts = if type(text.font) == str { (text.font,) } else { text.font }
-        if not fonts.any(font => lower(font) in ("noto sans", "libertinus sans", "source han sans")) and text.size == _font_size.body {
-            text(size: 0.94 * _font_size.body, it)
-        } else {
-            it
-        }
-    }
+    body
+}
+
+/// Introductory content with unnumbered headings; styles and outline entries
+/// are preserved, and heading numbering resumes after this scope.
+#let front-matter(body) = {
+    set heading(numbering: none)
     body
 }
 
 /// Apply the document template. Use with a show rule, optionally pre-filling
 /// configuration: `#show: template.with(theme: "dark", layout: "landscape")`.
-#let template(theme: "light", layout: "portrait", body) = context {
+#let template(
+    theme: sys.inputs.at("theme", default: "light"),
+    layout: "portrait",
+    body,
+) = context {
     // Validate at the public boundary so all output targets report the same
     // configuration errors.
     let _ = _palette(theme)
@@ -588,9 +560,17 @@
         message: "The layout must be either \"portrait\" or \"landscape\".",
     )
 
+    set heading(numbering: (..numbers) => {
+        if numbers.pos().len() <= 3 {
+            numbering("1.1", ..numbers)
+        }
+    })
+    set footnote(numbering: "[a]")
+
     _theme.update(theme)
-    _html.when-html(
-        () => _html.template(theme: theme, body),
-        () => _paged_template(theme, layout, body),
-    )
+    if target() == "html" {
+        _html.template(theme: theme, body)
+    } else {
+        _paged_template(theme, layout, body)
+    }
 }

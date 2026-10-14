@@ -4,7 +4,7 @@
     "body": [
       "#import \"@local/ypst-template:0.1.0\" as theme",
       "#import theme: template, sidenote, theorem, lemma, corollary, definition, proof,",
-      "  fletcher, diagram, node, edge, equate-lines, physica",
+      "  fletcher, diagram, node, edge",
       "",
       "#show: template",
       "",
@@ -86,15 +86,13 @@
     ]
   },
 
-  "Numbered equation lines": {
+  "Multiline equation group": {
     "prefix": "eql",
     "body": [
-      "#equate-lines[",
-      "  $",
-      "    a &= b + c #<eq:a> \\",
-      "    d &= e + f #<eq:b>",
-      "  $",
-      "]"
+      "$",
+      "  a &= b + c && \"(a)\" \\",
+      "  d &= e + f && \"(b)\"",
+      "$ <eq:group>"
     ]
   },
 

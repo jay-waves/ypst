@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+# Georgia is installed locally and must not be committed or redistributed.
+fonts/[Gg]eorgia*/
+fonts/[Gg]eorgia*.ttf
+fonts/georgi32.exe
+
+# Local validation fixtures and browser regression checks.
+/tests/

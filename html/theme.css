@@ -1,0 +1,632 @@
+/* Optional web font files supplied by the exporter; licenses stay in ypst-fonts/. */
+@font-face {
+  font-family: "Source Han Serif";
+  src: url("ypst-fonts/SourceHanSerifCN-Regular.otf") format("opentype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Source Han Serif";
+  src: url("ypst-fonts/SourceHanSerifCN-SemiBold.otf") format("opentype");
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Source Han Serif";
+  src: url("ypst-fonts/SourceHanSerifCN-Bold.otf") format("opentype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Source Han Sans";
+  src: url("ypst-fonts/SourceHanSansCN-Regular.otf") format("opentype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Source Han Sans";
+  src: url("ypst-fonts/SourceHanSansCN-Medium.otf") format("opentype");
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Source Han Sans";
+  src: url("ypst-fonts/SourceHanSansCN-Bold.otf") format("opentype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: "New Computer Modern Math";
+  src: local("New Computer Modern Math"), url("ypst-fonts/NewCMMath-Regular.otf") format("opentype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Iosevka";
+  src: url("ypst-fonts/Iosevka-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Iosevka";
+  src: url("ypst-fonts/Iosevka-Bold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
+/* Standalone HTML document theme. Editor previews are best-effort. */
+
+:root,
+.vscode-light,
+.theme-light,
+[data-theme="light"] {
+  --md-fg: #363733;
+  --md-bg: #fdfdfc;
+  --md-muted: #73746e;
+  --md-border: #dfe1df;
+  --md-border-muted: #e9ebe9;
+  --md-accent: #777c78;
+  --md-mark-bg: #e9ecea;
+  --md-code-bg: #e9ecea;
+  --md-code-fg: #363733;
+  --md-pre-bg: #f4f5f4;
+  --md-danger: #d1242f;
+  --md-alert-important: #8250df;
+  --md-alert-warning: #9a6700;
+  --md-alert-tip: #1a7f37;
+  --md-font-serif: Georgia, "Source Han Serif CN VF", "Source Han Serif", "Source Han Serif CN", "Source Han Serif SC", "Libertinus Serif", "New Computer Modern", "Times New Roman", serif;
+  --md-font-sans: "Source Han Sans CN VF", "Source Han Sans", "Source Han Sans CN", "Source Han Sans SC", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --md-font-mono: "Iosevka", ui-monospace, SFMono-Regular, Menlo, Consolas, "Source Han Sans CN VF", "Source Han Sans", "Source Han Sans CN", "Source Han Sans SC", monospace;
+  --md-code-font-size: 14px;
+  --md-font: var(--md-font-serif);
+  --md-block-indent: 2rem;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"],
+.vscode-dark,
+.vscode-high-contrast,
+.theme-dark,
+html:has(style[data-theme="dark"]),
+body:has(style[data-theme="dark"]),
+[data-theme="dark"] {
+  --md-fg: #f0f6fc;
+  --md-bg: #212830;
+  --md-muted: #9198a1;
+  --md-border: #3d444d;
+  --md-border-muted: #3d444db3;
+  --md-accent: #478be6;
+  --md-mark-bg: #ae7c1426;
+  --md-code-bg: #656c7633;
+  --md-code-fg: #c9d1d9;
+  --md-pre-bg: #262c36;
+  --md-danger: #e5534b;
+  --md-alert-important: #986ee2;
+  --md-alert-warning: #c69026;
+  --md-alert-tip: #57ab5a;
+  color-scheme: dark;
+}
+body {
+  margin: 32px auto;
+  width: min(95%, 920px);
+  -webkit-text-size-adjust: 100%;
+  font-weight: 450;
+  color: var(--md-fg);
+  background-color: var(--md-bg);
+  font-family: var(--md-font);
+  font-size: 16px;
+  line-height: 1.75;
+  word-wrap: break-word;
+}
+
+/* Keep scrolling available while making the page scrollbar unobtrusive. */
+html {
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--md-muted) 35%, transparent) transparent;
+}
+
+html::-webkit-scrollbar { width: 8px; height: 8px; }
+
+html::-webkit-scrollbar-track { background: transparent; }
+
+html::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--md-muted) 35%, transparent); border-radius: 999px; }
+
+html::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--md-muted) 55%, transparent); }
+
+body details { display: block; }
+
+body summary { display: list-item; }
+
+/* Explicit sidenotes use native disclosure, with the body kept in the text flow. */
+body .sidenote-toggle:not([open]) { display: inline-block; }
+body .sidenote-toggle[open] { display: block; }
+body .sidenote-toggle > summary {
+  display: inline-block;
+  vertical-align: super;
+  font-size: .75em;
+  line-height: 0;
+  cursor: pointer;
+  list-style: none;
+}
+body .sidenote-toggle > summary::-webkit-details-marker { display: none; }
+body .sidenote-toggle > summary::marker { content: ""; }
+body .sidenote-toggle > aside { margin: .35em 0 1em; font-size: 1em; }
+
+/* Native Typst footnotes use the same quote-like panel and return label. */
+body .inline-footnote figure { min-width: 0; max-width: 100%; }
+body .footnote-label,
+body .sidenote-panel > .sidenote-label,
+body .footnote-label:hover,
+body .sidenote-panel > .sidenote-label:hover { color: var(--md-muted); font-size: 1em; text-decoration: none; }
+body .sidenote-marker {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+/* Enlarge hit targets without changing line wrapping or superscript metrics. */
+body .sidenote-marker,
+body [role="doc-noteref"] > a,
+body .inline-footnote > .footnote-label,
+body .sidenote-panel > .sidenote-label { position: relative; color: var(--md-muted); }
+body .sidenote-marker::after,
+body [role="doc-noteref"] > a::after,
+body .inline-footnote > .footnote-label::after,
+body .sidenote-panel > .sidenote-label::after { content: ""; position: absolute; inset: -10px -9px; }
+
+/* Inline note markers stay undecorated, including while hovered. */
+body .sidenote-marker,
+body [role="doc-noteref"] > a,
+body [role="doc-noteref"] > a:hover { text-decoration: none; }
+
+body .sidenote-marker:focus-visible { outline: 2px solid var(--md-accent); outline-offset: 2px; }
+
+body [hidden] { display: none !important; }
+
+body a {
+  background-color: rgba(0,0,0,0);
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 60%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: .12em;
+}
+
+body b,
+body strong { font-weight: 600; }
+
+body dfn { font-style: italic; }
+
+body h1 {
+  margin-inline: 0;
+  padding-bottom: .3em;
+  font-size: 1.6em;
+  border-bottom: 1px solid var(--md-border-muted);
+}
+
+body mark { background-color: var(--md-mark-bg); color: var(--md-fg); }
+
+body small { font-size: 90%; }
+
+body sub,
+body sup {
+  font-size: 75%;
+  line-height: 0;
+  position: relative;
+  vertical-align: baseline;
+}
+
+body sub { bottom: -0.25em; }
+
+body sup { top: -0.5em; }
+
+body img {
+  border-style: none;
+  max-width: 100%;
+  height: auto;
+  box-sizing: content-box;
+}
+
+body :is(code, tt, kbd, pre, samp) { font-family: var(--md-font-mono); font-weight: 400; font-size: var(--md-code-font-size); }
+
+body figure {
+  display: table;
+  width: max-content;
+  max-width: 90%;
+  margin-inline: auto;
+}
+
+body figure img { display: block; max-width: 100%; margin-inline: auto; }
+
+body figcaption {
+  display: table-caption;
+  padding-top: .5rem;
+  color: var(--md-muted);
+  font-size: .875rem;
+  line-height: 1.5;
+  text-align: center;
+  caption-side: bottom;
+}
+
+body hr {
+  box-sizing: content-box;
+  overflow: hidden;
+  background: var(--md-border);
+  height: .25em;
+  padding: 0;
+  margin: 1.5rem 0;
+  border: 0;
+}
+
+body input { font: inherit; margin: 0; overflow: visible; }
+
+body a:hover { text-decoration: underline; }
+
+body table {
+  border-spacing: 0;
+  border-collapse: collapse;
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow: auto;
+  font-variant: tabular-nums;
+  font-size: .875rem;
+  text-align: left;
+}
+
+body table caption {
+  padding-top: .5rem;
+  color: var(--md-muted);
+  font-size: .875rem;
+  line-height: 1.5;
+  text-align: center;
+  caption-side: bottom;
+}
+
+body details summary { cursor: pointer; }
+
+body kbd {
+  display: inline-block;
+  padding: 0.25rem;
+  font: 11px ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
+  line-height: 10px;
+  color: var(--md-fg);
+  vertical-align: middle;
+  background-color: var(--md-pre-bg);
+  border: solid 1px var(--md-border);
+  border-radius: 6px;
+  box-shadow: inset 0 -1px 0 var(--md-border);
+}
+
+body h1,
+body h2,
+body h3,
+body :is(h4, h5),
+body h6 {
+  font-family: var(--md-font-sans);
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+body h2 { padding-bottom: .3em; font-size: 1.25em; border-bottom: 1px solid var(--md-border-muted); }
+
+body h3 { font-size: 1.1em; }
+
+body :is(h4, h5) { font-size: 1em; }
+
+body h6 { font-size: 1em; color: var(--md-muted); }
+
+body blockquote,
+body .sidenote-toggle > aside {
+  margin-inline: 0;
+  padding: .2rem 0 .2rem calc(var(--md-block-indent) - 2px);
+  color: var(--md-muted);
+  border-left: 2px solid var(--md-border-muted);
+  box-sizing: border-box;
+}
+
+body :is(ul, ol) { margin-inline: 0; padding-inline: var(--md-block-indent) 0; list-style-position: outside; }
+
+body ol ol,
+body ul ol { list-style-type: lower-roman; }
+
+body ul ul ol,
+body ul ol ol,
+body ol ul ol,
+body ol ol ol { list-style-type: lower-alpha; }
+
+body dd { margin-left: 0; }
+
+body>*:first-child { margin-top: 0 !important; }
+
+body>*:last-child { margin-bottom: 0 !important; }
+
+body a:not([href]) { color: inherit; text-decoration: none; }
+
+body p,
+body blockquote,
+body figure,
+body :is(ul, ol),
+body dl,
+body table,
+body pre,
+body details { margin-top: 0; margin-bottom: 1rem; }
+
+body blockquote>:first-child,
+body .sidenote-toggle > aside>:first-child { margin-top: 0; }
+
+body blockquote>:last-child,
+body .sidenote-toggle > aside>:last-child { margin-bottom: 0; }
+
+/* Collapsible Typst headings. */
+
+.typst-document section.heading-section { margin: 0; }
+
+.typst-document section.heading-section.is-collapsed > :is(.heading-content, section.heading-section) { display: none; }
+
+.typst-document .heading-summary {
+    display: block;
+    position: relative;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+}
+
+.typst-document .heading-summary > :is(h1, h2, h3, h4, h5, h6)::after {
+    content: '¶';
+    margin-left: .35em;
+    color: var(--md-muted);
+    font-family: inherit;
+    font-size: 1em;
+    font-weight: 400;
+    opacity: .22;
+    pointer-events: none;
+    transition: opacity .14s ease;
+}
+
+.typst-document .heading-summary > :is(h1, h2, h3, h4, h5, h6):hover::after,
+.typst-document .heading-summary:focus-visible > :is(h1, h2, h3, h4, h5, h6)::after { opacity: .5; }
+
+.typst-document section.heading-section.is-collapsed > .heading-summary
+    > :is(h1, h2, h3, h4, h5, h6)::after { opacity: .58; }
+
+.typst-document .heading-summary > :is(h1, h2, h3, h4, h5, h6) {
+    display: block;
+    position: relative;
+    width: fit-content;
+    max-width: 100%;
+    cursor: pointer;
+}
+
+/* Heading rules span the single prose column. */
+.typst-document .heading-summary > :is(h1, h2) { border-bottom: 0; padding-bottom: .3em; max-width: 100%; }
+
+.typst-document section.heading-section:is([data-heading-level="1"], [data-heading-level="2"])
+    > .heading-summary::after {
+    position: absolute;
+    right: auto;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 1px;
+    content: "";
+    background-color: var(--md-border-muted);
+}
+
+body :is(h1, h2, h3, h4, h5, h6) :is(tt, code) { padding: 0 .2em; font-size: inherit; }
+
+body summary :is(h1, h2, h3, h4, h5, h6) { display: inline-block; }
+
+body summary h1,
+body summary h2 { padding-bottom: 0; border-bottom: 0; }
+
+body :is(ul, ol) :is(ul, ol) { margin-top: 0; margin-bottom: 0; }
+
+body li>p { margin-top: 1rem; }
+
+body li+li { margin-top: .25em; }
+
+body dl { padding: 0; }
+
+body dl dt {
+  padding: 0;
+  margin-top: 1rem;
+  font-size: 1em;
+  font-style: italic;
+  font-weight: 600;
+}
+
+body dl dd { padding: 0 1rem; margin-bottom: 1rem; }
+
+body table th { font-weight: 600; text-align: left; }
+
+body table th,
+body table td { padding: 8px 20px; border: 0; border-top: 1px solid var(--md-border-muted); }
+
+body table td>:last-child { margin-bottom: 0; }
+
+body table tr { background-color: var(--md-bg); border-top: 1px solid var(--md-border-muted); }
+
+body table tr:nth-child(2n) { background-color: var(--md-pre-bg); }
+
+body table tr:last-child td,
+body table tr:last-child th { border-bottom: 1px solid var(--md-border-muted); }
+
+body table img { background-color: rgba(0,0,0,0); }
+
+body code,
+body tt {
+  padding: 0 .4em;
+  margin: 0;
+  line-height: inherit;
+  white-space: break-spaces;
+  color: var(--md-code-fg);
+  background-color: var(--md-code-bg);
+  border-radius: 6px;
+}
+
+/* Keep the inline-code background on the prose baseline. */
+body :not(pre) > code,
+body :not(pre) > tt { vertical-align: 0.1em; }
+
+body code br,
+body tt br { display: none; }
+
+body del code { text-decoration: inherit; }
+
+body pre>code {
+  padding: 0;
+  margin: 0;
+  word-break: normal;
+  white-space: pre;
+  background: rgba(0,0,0,0);
+  border: 0;
+}
+
+body .highlight { margin-bottom: 1rem; }
+
+body .highlight pre { margin-bottom: 0; word-break: normal; }
+
+body pre {
+  padding: 1rem;
+  overflow: auto;
+  word-wrap: normal;
+  line-height: 1.45;
+  color: var(--md-code-fg);
+  background-color: color-mix(in srgb, var(--md-bg) 98%, var(--md-muted));
+  border: 1px solid color-mix(in srgb, var(--md-border) 78%, transparent);
+  border-radius: 5px;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--md-muted) 35%, transparent) transparent;
+}
+
+body pre::-webkit-scrollbar { width: 6px; height: 6px; }
+
+body pre::-webkit-scrollbar-track { background: transparent; }
+
+body pre::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--md-muted) 30%, transparent); border-radius: 999px; }
+
+body pre::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--md-muted) 50%, transparent); }
+
+body pre code,
+body pre tt,
+body pre span,
+body code span {
+  display: inline;
+  padding: 0;
+  margin: 0;
+  overflow: visible;
+  font-family: var(--md-font-mono);
+  font-size: var(--md-code-font-size);
+  line-height: inherit;
+  word-wrap: normal;
+  background-color: rgba(0,0,0,0);
+  border: 0;
+}
+
+body .task-list-item { list-style-type: none; }
+
+body .task-list-item-checkbox { margin: 0 .2em .25em -1.4em; vertical-align: middle; }
+
+body .markdown-alert {
+  padding: 0.5rem 1rem;
+  margin-bottom: 1rem;
+  color: inherit;
+  border-left: .25em solid var(--md-border);
+}
+
+body .markdown-alert>:first-child { margin-top: 0; }
+
+body .markdown-alert>:last-child { margin-bottom: 0; }
+
+body .markdown-alert .markdown-alert-title {
+  display: flex;
+  font-weight: 500;
+  align-items: center;
+  line-height: 1;
+}
+
+body .markdown-alert.markdown-alert-note { border-left-color: var(--md-accent); }
+
+body .markdown-alert.markdown-alert-note .markdown-alert-title { color: var(--md-accent); }
+
+body .markdown-alert.markdown-alert-important { border-left-color: var(--md-alert-important); }
+
+body .markdown-alert.markdown-alert-important .markdown-alert-title { color: var(--md-alert-important); }
+
+body .markdown-alert.markdown-alert-warning { border-left-color: var(--md-alert-warning); }
+
+body .markdown-alert.markdown-alert-warning .markdown-alert-title { color: var(--md-alert-warning); }
+
+body .markdown-alert.markdown-alert-tip { border-left-color: var(--md-alert-tip); }
+
+body .markdown-alert.markdown-alert-tip .markdown-alert-title { color: var(--md-alert-tip); }
+
+body .markdown-alert.markdown-alert-caution { border-left-color: var(--md-danger); }
+
+body .markdown-alert.markdown-alert-caution .markdown-alert-title { color: var(--md-danger); }
+
+body .katex,
+body mjx-container { font-size: 1em; }
+
+/* Native MathML uses the same bundled math family as PDF equations. */
+body math { font-family: "New Computer Modern Math", math; }
+
+/* Keep note layout self-contained, including when an exporter moves the panel
+ * outside .typst-document. Place this after the general block/quote rules. */
+body :is(.inline-footnote, .sidenote-panel) {
+  display: grid;
+  grid-template-columns: calc(var(--md-block-indent) - .5rem - 2px) minmax(0, 1fr);
+  align-items: start;
+  gap: 0 .5rem;
+  box-sizing: border-box;
+  min-width: 0;
+  margin: .35em 0 1rem;
+  padding: .2rem 0;
+  border-left: 2px solid var(--md-border-muted);
+  color: var(--md-muted);
+  font-size: 1em;
+  line-height: inherit;
+}
+body .inline-footnote > .footnote-label,
+body .sidenote-panel > .sidenote-label {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: start;
+  margin: 0;
+  padding: 0;
+  text-align: right;
+  white-space: nowrap;
+  line-height: inherit;
+}
+body .inline-footnote > .note-content,
+body .sidenote-panel > .note-content {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+body .note-content > :first-child { margin-top: 0; }
+body .note-content > :last-child { margin-bottom: 0; }
+
+/* Common Markdown footnote output (markdown-it-footnote and reading views).
+ * These remain endnotes; CSS does not turn them into Typst disclosures. */
+body :is(.footnotes, .footnotes-list) { color: var(--md-muted); font-size: 1em; }
+body :is(.footnote-ref a, a.footnote-link, a.footnote-backref) { color: var(--md-muted); text-decoration: none; }
+body li > p:first-child { margin-top: 0; }
+
+body :is(a, button, summary, [role="button"]):focus-visible { outline: 2px solid var(--md-accent); outline-offset: 2px; }

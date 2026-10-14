@@ -1,0 +1,15 @@
+# Optional template fonts
+
+These files are not copied by install.py. Install them yourself or use --font-path.
+HTML exports can use these files in a sibling ypst-fonts/ directory.
+
+- Source Han Serif: Regular/SemiBold/Bold; LICENSE-SourceHanSerif.txt.
+- Source Han Sans: Regular/Medium/Bold; LICENSE-SourceHanSans.txt.
+- Iosevka: Regular/Bold; LICENSE-Iosevka.txt.
+- New Computer Modern Math: Regular; NOTICE-NewCMMath.txt.
+
+Keep the unmodified font files and their licenses together when redistributing.
+
+Georgia: original Core Fonts archive and extracted font/license files are kept together.
+For Georgia, only the download script is tracked; run python fonts/download-georgia.py.
+Downloaded fonts/Georgia is Git-ignored and not copied by install.py.
