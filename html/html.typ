@@ -1,17 +1,17 @@
 /// HTML-specific rendering helpers for the document theme.
 
-/// Keep the body visible and reveal its note with a native disclosure.
+/// Emit the note structure at compile time; details also works without scripts.
 #let sidenote(body, aside) = {
     if aside == none {
         body
     } else {
         block(html.div(class: "sidenote", [
-            #body
+            #html.div(class: "sidenote-body", body)
             #html.elem("details", attrs: ("class": "sidenote-toggle"), [
                 #html.elem("summary", "*")
-                #html.elem("aside", attrs: (role: "note"), [
-                    #html.elem("span", attrs: (class: "sidenote-label", "aria-hidden": "true"), "*")
-                    #aside
+                #html.elem("aside", attrs: (role: "note", class: "sidenote-panel"), [
+                    #html.elem("a", attrs: (class: "sidenote-label",), "*")
+                    #html.div(class: "note-content", aside)
                 ])
             ])
         ]))
@@ -47,7 +47,7 @@
     show grid: it => it.children.map(html.div).join()
     show stack: it => it.children.map(html.div).join()
     show place: it => it.body
-    html.elem("style", attrs: ("data-theme": theme), read("theme.css"))
+    html.elem("style", attrs: ("data-theme": theme), read("theme.css") + "\n" + read("footnotes.css") + "\n" + read("headings.css"))
     block(html.div(class: "typst-document", body))
     html.elem("script", "(() => {\n" + read("links.js") + "\n" + read("footnotes.js") + "\n" + read("headings.js") + "\n})();")
 }

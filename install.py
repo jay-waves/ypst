@@ -39,7 +39,7 @@ def sync_package(source, target):
             legacy = target / name
             if legacy.is_file():
                 legacy.unlink()
-        for name in ("sidenotes.css", "sidenotes.js", "fonts.css"):
+        for name in ("sidenotes.js", "fonts.css"):
             legacy = target / "html" / name
             if legacy.is_file():
                 legacy.unlink()

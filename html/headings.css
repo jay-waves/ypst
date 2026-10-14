@@ -1,0 +1,55 @@
+/* Collapsible Typst headings. */
+
+.typst-document section.heading-section { margin: 0; }
+
+.typst-document section.heading-section.is-collapsed > :is(.heading-content, section.heading-section) { display: none; }
+
+.typst-document .heading-summary {
+    display: block;
+    position: relative;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+}
+
+.typst-document .heading-summary > :is(h1, h2, h3, h4, h5, h6)::after {
+    content: '¶';
+    margin-left: .35em;
+    color: var(--md-muted);
+    font-family: inherit;
+    font-size: 1em;
+    font-weight: 400;
+    opacity: .22;
+    pointer-events: none;
+    transition: opacity .14s ease;
+}
+
+.typst-document .heading-summary > :is(h1, h2, h3, h4, h5, h6):hover::after,
+.typst-document .heading-summary:focus-visible > :is(h1, h2, h3, h4, h5, h6)::after { opacity: .5; }
+
+.typst-document section.heading-section.is-collapsed > .heading-summary
+    > :is(h1, h2, h3, h4, h5, h6)::after { opacity: .58; }
+
+.typst-document .heading-summary > :is(h1, h2, h3, h4, h5, h6) {
+    display: block;
+    position: relative;
+    width: fit-content;
+    max-width: 100%;
+    cursor: pointer;
+}
+
+/* Heading rules span the single prose column. */
+.typst-document .heading-summary > :is(h1, h2) { border-bottom: 0; padding-bottom: .3em; max-width: 100%; }
+
+.typst-document section.heading-section:is([data-heading-level="1"], [data-heading-level="2"])
+    > .heading-summary::after {
+    position: absolute;
+    right: auto;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 1px;
+    content: "";
+    background-color: var(--md-border-muted);
+}
+

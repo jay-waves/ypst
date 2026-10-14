@@ -1,7 +1,7 @@
 # Optional template fonts
 
 These files are not copied by install.py. Install them yourself or use --font-path.
-HTML exports can use these files in a sibling ypst-fonts/ directory.
+Install these fonts locally for HTML exports; unavailable fonts fall back to system fonts.
 
 - Source Han Serif: Regular/SemiBold/Bold; LICENSE-SourceHanSerif.txt.
 - Source Han Sans: Regular/Medium/Bold; LICENSE-SourceHanSans.txt.

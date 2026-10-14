@@ -62,6 +62,6 @@ PDF uses native footnotes. HTML embeds CSS and scripts: click a note marker to e
 
 The installer does not install fonts. Use system fonts or `--font-path ./fonts` for PDF. `python fonts/download-georgia.py` downloads Georgia; Linux extraction requires `cabextract` or 7-Zip.
 
-For portable HTML, place redistributable font files and their licenses in `ypst-fonts/` beside the exported HTML. Georgia uses the local installation; do not redistribute it. Font declarations are included in `html/theme.css`.
+HTML uses locally installed fonts and falls back to system fonts when they are unavailable. Install the preferred fonts locally to use them; the stylesheet does not load font files.
 
 The stylesheet targets standalone HTML; editor preview support is best-effort. See [HTML stylesheet notes](html/COMPATIBILITY.md).

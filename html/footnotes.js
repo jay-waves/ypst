@@ -2,24 +2,13 @@
     const convertFootnotes = () => {
         // Keep native details as the no-script fallback. With scripts, put the
         // marker in the final body paragraph and the panel after the body.
-        document.querySelectorAll('.sidenote > .sidenote-toggle').forEach(details => {
+        document.querySelectorAll('.sidenote > .sidenote-toggle').forEach((details, index) => {
             const wrapper = details.parentElement;
             const aside = details.querySelector(':scope > aside');
             if (!aside) return;
-            const originalLabel = aside.querySelector('.sidenote-label');
-            const labelParagraph = originalLabel?.parentElement;
-            originalLabel?.remove();
-            const label = document.createElement('a');
-            label.className = 'sidenote-label';
-            label.textContent = originalLabel?.textContent || '*';
+            const label = aside.querySelector(':scope > .sidenote-label');
             label.setAttribute('aria-label', 'Close sidenote and return to reference');
-            if (labelParagraph?.matches('p') && !labelParagraph.textContent.trim()) labelParagraph.remove();
-            const content = document.createElement('div');
-            content.className = 'note-content';
-            [...aside.childNodes].filter(node => node !== label).forEach(node => content.append(node));
-            aside.append(label, content);
-            aside.className = 'sidenote-panel';
-            aside.id = `sidenote-panel-${document.querySelectorAll('.sidenote-panel').length + 1}`;
+            aside.id = `sidenote-panel-${index + 1}`;
             aside.hidden = true;
             const marker = document.createElement('button');
             marker.type = 'button';
@@ -32,10 +21,7 @@
             marker.setAttribute('aria-expanded', 'false');
             const sup = document.createElement('sup');
             sup.append(marker);
-            const body = document.createElement('div');
-            body.className = 'sidenote-body';
-            while (wrapper.firstChild !== details) body.append(wrapper.firstChild);
-            wrapper.prepend(body);
+            const body = wrapper.querySelector(':scope > .sidenote-body');
             const last = body.lastElementChild;
             (last?.matches('p') ? last : body).append(sup);
             details.replaceWith(aside);
