@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Synchronize this checkout into Typst's local package directory (Python 3)."""
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import shutil
 import sys
 import argparse
@@ -16,21 +16,19 @@ def package_directory(platform=None, env=None, home=None):
     elif platform == "darwin":
         base = home / "Library" / "Application Support"
     else:
-        base = Path(env.get("XDG_DATA_HOME") or home / ".local" / "share")
+        # XDG paths must be absolute. Ignore empty/relative values instead of
+        # accidentally installing beneath the current working directory.
+        data_home = env.get("XDG_DATA_HOME", "")
+        base = (Path(data_home) if data_home and PurePosixPath(data_home).is_absolute()
+                else home / ".local" / "share")
     return base / "typst" / "packages" / "local" / "ypst-template" / "0.1.0"
 
 
 def sync_package(source, target):
     source, target = Path(source).resolve(), Path(target).resolve()
-    files = ("typst.toml", "lib.typ")
-    for name in files:
-        if not (source / name).is_file():
-            raise FileNotFoundError(source / name)
-    if not (source / "html").is_dir():
-        raise FileNotFoundError(source / "html")
     if source != target:
         target.mkdir(parents=True, exist_ok=True)
-        for name in files:
+        for name in ("typst.toml", "lib.typ"):
             shutil.copyfile(source / name, target / name)
         shutil.copytree(source / "html", target / "html", dirs_exist_ok=True)
         # Font installation is separate. Never copy or remove destination fonts.

@@ -10,12 +10,27 @@ Install or update the local package from this repository:
 python install.py
 ```
 
+On Linux, use `python3 install.py`. Run it again after updating this checkout;
+it refreshes the existing `0.1.0` installation, including HTML styles and scripts.
+The script can be called from any working directory.
+
+| System | Package destination |
+| --- | --- |
+| Windows | `%APPDATA%/typst/packages/local/ypst-template/0.1.0/` |
+| Linux | `${XDG_DATA_HOME:-$HOME/.local/share}/typst/packages/local/ypst-template/0.1.0/` |
+| macOS | `~/Library/Application Support/typst/packages/local/ypst-template/0.1.0/` |
+
+Linux ignores relative `XDG_DATA_HOME` values and uses the default instead.
+These are the [standard local package directories](https://github.com/typst/packages#local-packages).
+If your compiler or editor overrides `--package-path` / `TYPST_PACKAGE_PATH`,
+point it at the corresponding `typst/packages` directory above. Fonts are installed separately.
+
 The package version stays at `0.1.0`. First compilation downloads `ctheorems:1.1.3`, `fletcher:0.5.8`, and their dependencies.
 
 ```typst
 #import "@local/ypst-template:0.1.0": template, front-matter, sidenote
-#show: template
 #set document(title: "Technical Notes")
+#show: template
 
 #front-matter[
   = Technical Notes
@@ -49,6 +64,33 @@ Defaults are `theme: "light"` and `layout: "portrait"`:
 - `diagram`, `node`, `edge`: Fletcher helpers with theme colors; `fletcher` exposes the full module.
 
 PDF uses native footnotes. HTML embeds CSS and scripts: click a note marker to expand, then its return label to close and return. Headings are collapsible; equations use MathML. PDF and HTML layouts may differ.
+
+## Recommended packages
+
+| Package | Use with this template |
+| --- | --- |
+| [Physica](https://typst.app/universe/package/physica/) | Derivatives, vector calculus, and other scientific notation. Import as a module to avoid name collisions; see `examples/scientific.typ`. |
+| [CeTZ](https://typst.app/universe/package/cetz/) | Custom vector drawings. For HTML, render the canvas through `html.frame`; see `examples/scientific.typ`. |
+| [Fletcher](https://typst.app/universe/package/fletcher/) | Arrow and node diagrams. Already exposed as `diagram`, `node`, `edge`, and `fletcher`; use `html.frame` for HTML, as shown in `examples/components.typ`. |
+| [ctheorems](https://typst.app/universe/package/ctheorems/) | Theorem numbering and environments. Already integrated through `definition`, `theorem`, `lemma`, `corollary`, and `proof`. |
+
+The examples exercise selected package features in PDF and HTML; this is not a guarantee for every package API. Additional packages are downloaded when their examples are first compiled.
+
+## Examples
+
+- [typography.typ](examples/typography.typ): bilingual text, emphasis, heading levels, tables, and code.
+- [components.typ](examples/components.typ): front matter, footnotes, text/image sidenotes, theorem environments, cross-references, figures, and diagrams.
+- [scientific.typ](examples/scientific.typ): Physica notation and a CeTZ drawing shared between PDF and HTML.
+
+Run from the repository root (replace `components` with another example name):
+
+```sh
+typst compile --root . --font-path ./fonts examples/components.typ components.pdf
+typst compile --root . --features html examples/components.typ components.html
+typst compile --root . --font-path ./fonts --input theme=dark --input layout=landscape examples/components.typ components-dark.pdf
+```
+
+Examples import the checkout directly. In your own documents, use `@local/ypst-template:0.1.0` after running the installer.
 
 ## Fonts and CSS
 
