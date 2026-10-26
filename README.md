@@ -98,7 +98,7 @@ Examples import the checkout directly. In your own documents, use `@local/ypst-t
 | --- | --- |
 | Latin prose | Georgia |
 | Chinese prose | Source Han Serif |
-| Headings | Source Han Sans |
+| Headings | Georgia / Source Han Serif |
 | Code | Iosevka |
 | Math | New Computer Modern Math |
 

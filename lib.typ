@@ -38,15 +38,13 @@
 #let _code_fonts = (
     "Iosevka",
     "Source Han Sans",
-    "Source Han Sans SC",
 )
 
-// Accept regional Source Han names on Linux and Windows.
 // Missing glyphs fall back to other fonts registered with the compiler.
 #let _math_fonts = ("New Computer Modern Math",)
 #let _serif_fonts = ("Georgia", "Libertinus Serif", "New Computer Modern")
-#let _cjk_serif_fonts = ("Source Han Serif", "Source Han Serif SC")
-#let _cjk_sans_fonts = ("Source Han Sans", "Source Han Sans SC")
+#let _cjk_serif_fonts = ("Source Han Serif",)
+#let _cjk_sans_fonts = ("Source Han Sans",)
 
 // Each role owns both script paths; weights are (regular, strong).
 #let _typography = (
