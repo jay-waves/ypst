@@ -293,18 +293,25 @@
     )
 }
 
-// Native references resolve numbering in the target's context. Use plain text
-// here so equation-only parentheses and styling do not enter the reference.
+// Resolve chapter-prefixed references at the target location. Use plain text
+// so equation-only parentheses and styling do not enter the reference.
 #let _numbered_ref(it) = context {
     let target = it.element
-    if it.form != "normal" or target == none or not target.has("numbering") or target.numbering != _equation_numbering {
+    if it.form != "normal" or target == none or not target.has("numbering") {
         return it
     }
+    let is-equation = target.numbering == _equation_numbering
+    let is-figure = target.numbering == _figure_numbering
+    if not is-equation and not is-figure { return it }
     let chapter = counter(heading).at(target.location()).first()
-    let number = counter(math.equation).at(target.location()).first()
+    let numbers = if is-equation {
+        counter(math.equation).at(target.location())
+    } else {
+        counter(figure.where(kind: target.kind)).at(target.location())
+    }
     let supplement = if it.supplement == auto { target.supplement } else { it.supplement }
     if type(supplement) == function { supplement = supplement(target) }
-    link(target.location(), [#if supplement not in (none, []) [#supplement~]#numbering("1.1", chapter, number)])
+    link(target.location(), [#if supplement not in (none, []) [#supplement~]#numbering(if is-equation { "1.1" } else { "1.1a" }, chapter, ..numbers)])
 }
 
 // Paged output is the core renderer. HTML-specific compatibility rules and
