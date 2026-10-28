@@ -274,8 +274,6 @@ body :is(ul, ol) :is(ul, ol) { margin-top: 0; margin-bottom: 0; }
 
 body li>p { margin-top: 1rem; }
 
-body li+li { margin-top: .25em; }
-
 body dl { padding: 0; }
 
 body dl dt {
