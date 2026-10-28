@@ -63,7 +63,7 @@ Defaults are `theme: "light"` and `layout: "portrait"`:
 - Native equation, figure, and table references. PDF equations use chapter prefixes; HTML equations use continuous numbering.
 - `diagram`, `node`, `edge`: Fletcher helpers with theme colors; `fletcher` exposes the full module.
 
-PDF uses native footnotes. HTML embeds CSS and scripts: click a note marker to expand, then its return label to close and return. Headings are collapsible; equations use MathML. PDF and HTML layouts may differ.
+PDF uses native footnotes. HTML embeds CSS and scripts: click a footnote marker to expand or close it; opening another footnote closes the previous one. Headings are collapsible; equations use MathML. PDF and HTML layouts may differ.
 
 ## Recommended packages
 

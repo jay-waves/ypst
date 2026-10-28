@@ -44,6 +44,7 @@
         const panels = new WeakMap();
         const insertedAfter = new Map();
         const converted = new Set();
+        let activePanel = null;
         let index = 0;
 
         document.querySelectorAll('[role="doc-noteref"] a[href]').forEach(reference => {
@@ -67,17 +68,13 @@
                 note.setAttribute('role', 'doc-footnote');
                 note.hidden = true;
 
-                const label = document.createElement('a');
-                label.className = 'footnote-label';
-                label.setAttribute('aria-label', 'Close footnote and return to reference');
-
                 const copy = source.cloneNode(true);
                 copy.querySelectorAll('[role="doc-backlink"]').forEach(backlink => backlink.remove());
                 copy.querySelectorAll('[data-source-line]').forEach(node => node.removeAttribute('data-source-line'));
                 const content = document.createElement('div');
                 content.className = 'note-content';
                 content.append(...copy.childNodes);
-                note.append(label, content);
+                note.append(content);
 
                 const previous = insertedAfter.get(container);
                 if (container === table || container === paragraph || container.matches('h1,h2,h3,h4,h5,h6')) {
@@ -92,18 +89,9 @@
                     insertedAfter.set(container, note);
                 }
 
-                panel = { note, label, references: [] };
+                panel = { note, references: [] };
                 bySource.set(sourceId, panel);
                 converted.add(sourceId);
-
-                label.addEventListener('click', event => {
-                    event.preventDefault();
-                    panel.note.hidden = true;
-                    for (const ref of panel.references) ref.setAttribute('aria-expanded', 'false');
-                    const ref = panel.references.find(item => item.id === sameDocumentFragment(label)) || panel.references[0];
-                    ref?.focus({ preventScroll: true });
-                    ref?.scrollIntoView({ block: 'nearest' });
-                });
             }
 
             if (!reference.id) reference.id = `inline-footnote-ref-${++index}`;
@@ -114,11 +102,17 @@
             reference.setAttribute('aria-expanded', 'false');
             reference.addEventListener('click', event => {
                 event.preventDefault();
-                panel.note.hidden = !panel.note.hidden;
-                for (const ref of panel.references) ref.setAttribute('aria-expanded', String(!panel.note.hidden));
-                if (!panel.note.hidden) panel.label.href = new URL(`#${reference.id}`, document.URL).href;
+                const opening = panel.note.hidden;
+                if (activePanel) {
+                    activePanel.note.hidden = true;
+                    for (const ref of activePanel.references) ref.setAttribute('aria-expanded', 'false');
+                }
+                activePanel = opening ? panel : null;
+                if (activePanel) {
+                    panel.note.hidden = false;
+                    for (const ref of panel.references) ref.setAttribute('aria-expanded', 'true');
+                }
             });
-            panel.label.textContent = reference.textContent;
         });
 
         for (const id of converted) notes.get(id)?.remove();

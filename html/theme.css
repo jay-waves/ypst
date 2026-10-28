@@ -18,8 +18,8 @@
   --md-alert-important: #8250df;
   --md-alert-warning: #9a6700;
   --md-alert-tip: #1a7f37;
-  --md-font-serif: Georgia, "Source Han Serif", serif;
-  --md-font-sans: "Source Han Sans", system-ui, sans-serif;
+  --md-font-serif: Georgia, "Source Han Serif CN", "Source Han Serif", serif;
+  --md-font-sans: "Source Han Sans CN", "Source Han Sans", system-ui, sans-serif;
   --md-font-mono: "Iosevka", monospace;
   --md-code-font-size: 14px;
   --md-font: var(--md-font-serif);
@@ -54,7 +54,7 @@ body {
   margin: 32px auto;
   width: min(95%, 920px);
   -webkit-text-size-adjust: 100%;
-  font-weight: 450;
+  font-weight: 400;
   color: var(--md-fg);
   background-color: var(--md-bg);
   font-family: var(--md-font);
@@ -225,8 +225,8 @@ body :is(h4, h5) { font-size: 1em; }
 body h6 { font-size: 1em; color: var(--md-muted); }
 
 body blockquote {
-  margin-inline: 0;
-  padding: .2rem 0 .2rem calc(var(--md-block-indent) - 2px);
+  margin-inline: 1rem 0;
+  padding: .2rem 0 .2rem calc(var(--md-block-indent) - 1rem - 2px);
   color: var(--md-muted);
   border-left: 2px solid var(--md-border-muted);
   box-sizing: border-box;
