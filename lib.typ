@@ -18,7 +18,7 @@
 /// - `diagram(..args)`: theme-aware Fletcher diagrams with the native API.
 /// - `fletcher` / `node` / `edge`: the Fletcher module and native primitives.
 ///
-/// HTML export: `typst compile --features html path/to/note.typ note.html`.
+/// HTML export: `python typst.py compile path/to/note.typ note.html` from the checkout.
 /// The recommended interfaces are listed above; other top-level names remain importable.
 
 #import "@preview/ctheorems:1.1.3": (
@@ -314,8 +314,8 @@
     link(target.location(), [#if supplement not in (none, []) [#supplement~]#numbering(if is-equation { "1.1" } else { "1.1a" }, chapter, ..numbers)])
 }
 
-// Paged output is the core renderer. HTML-specific compatibility rules and
-// package asset injection live in html/html.typ.
+// Paged output is the core renderer. HTML-specific compatibility rules live in
+// html/html.typ, which embeds HTML assets at compilation.
 #let _paged_template(theme, layout, body) = context {
     let palette = _palette(theme)
     let landscape = layout == "landscape"

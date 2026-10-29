@@ -1,0 +1,19 @@
+.typst-document pre.mermaid {
+  --pele-bg: transparent;
+  --pele-fg: var(--md-fg);
+  --pele-muted: var(--md-muted);
+  --pele-line: var(--md-fg);
+  --pele-surface: var(--md-pre-bg);
+  --pele-surface-alt: var(--md-border-muted);
+  --pele-border: var(--md-border);
+  --pele-accent: var(--md-accent);
+  --pele-font: var(--md-font-serif);
+  --pele-font-mono: var(--md-font-mono);
+  margin: 1rem 0;
+  padding: 0;
+  overflow: visible;
+  color: var(--md-fg);
+  background: transparent;
+  border: 0;
+}
+.typst-document pre.mermaid > svg { display: block; max-width: 100%; }

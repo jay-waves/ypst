@@ -18,7 +18,7 @@
     }
 }
 
-/// Apply the HTML-safe layout rules and inject the package assets.
+/// Apply HTML-safe layout rules and emit browser resources.
 #let template(theme: "light", body) = {
     // Heading and footnote formats are supplied by the public template.
     // HTML equations use native sequential numbering.
@@ -47,7 +47,37 @@
     show grid: it => it.children.map(html.div).join()
     show stack: it => it.children.map(html.div).join()
     show place: it => it.body
-    html.elem("style", attrs: ("data-theme": theme), read("theme.css") + "\n" + read("footnotes.css") + "\n" + read("headings.css"))
+    // During bundle document rendering the contextual target is HTML, so the
+    // wrapper marks bundle mode with a private compiler input.
+    let bundled = sys.inputs.at("ypst-template-bundle", default: "false") == "true"
+    let assets = sys.inputs.at("ypst-template-assets-prefix", default: "assets/")
+    if bundled {
+        html.elem("link", attrs: (rel: "stylesheet", href: assets + "theme.css", "data-theme": theme))
+        html.elem("link", attrs: (rel: "stylesheet", href: assets + "footnotes.css"))
+        html.elem("link", attrs: (rel: "stylesheet", href: assets + "headings.css"))
+    } else {
+        html.elem("style", attrs: ("data-theme": theme), read("theme.css") + "\n" + read("footnotes.css") + "\n" + read("headings.css"))
+    }
     block(html.div(class: "typst-document", body))
-    html.elem("script", "(() => {\n" + read("links.js") + "\n" + read("footnotes.js") + "\n" + read("headings.js") + "\n})();")
+    if bundled {
+        html.elem("script", attrs: (src: assets + "links.js"))
+        html.elem("script", attrs: (src: assets + "footnotes.js"))
+        html.elem("script", attrs: (src: assets + "headings.js"))
+        html.elem("script", attrs: (src: assets + "line_navigation.js"))
+    } else {
+        html.elem("script", "(() => {\n" + read("links.js") + "\n" + read("footnotes.js") + "\n" + read("headings.js") + "\n" + read("line_navigation.js") + "\n})();")
+    }
+    context if query(raw.where(lang: "mermaid")).len() > 0 {
+        if bundled {
+            html.elem("link", attrs: (rel: "stylesheet", href: assets + "mermaid.css"))
+            html.elem("script", attrs: (src: assets + "pele.global.js"))
+            html.elem("script", attrs: (src: assets + "mermaid.js"))
+        } else {
+            html.elem("style", read("mermaid.css"))
+            // HTML export rejects U+0085; preserve the JavaScript value with an escape.
+            let pele = read("pele.global.js").replace("\u{85}", "\\u0085")
+            html.elem("script", "/*\n" + read("LICENSE-Pele.txt").replace("*/", "* /") + "\n*/\n" + pele)
+            html.elem("script", read("mermaid.js"))
+        }
+    }
 }

@@ -33,6 +33,8 @@
 .theme-dark,
 html:has(style[data-theme="dark"]),
 body:has(style[data-theme="dark"]),
+html:has(link[data-theme="dark"]),
+body:has(link[data-theme="dark"]),
 [data-theme="dark"] {
   --md-fg: #f0f6fc;
   --md-bg: #212830;
