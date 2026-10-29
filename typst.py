@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
 """Compile or watch standalone Typst HTML and shared-resource sites."""
 import argparse
-import base64
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import hashlib
-import json
 import os
 from pathlib import Path
-import re
 import socket
 import subprocess
 import sys
@@ -17,21 +14,46 @@ import threading
 import time
 from urllib.parse import quote, urlsplit
 
-from tools.html_line_anchors import inject
+from tools.html_line_anchors import inject, rewrite_main_images
 
 ASSET_NAMES = (
     "theme.css", "footnotes.css", "headings.css", "mermaid.css",
-    "links.js", "footnotes.js", "headings.js", "line_navigation.js",
-    "pele.global.js", "mermaid.js", "LICENSE-Pele.txt",
+    "pele.global.js", "LICENSE-Pele.txt",
 )
 
 
-def write_text(path, content):
-    path.write_text(content, encoding="utf-8", newline="\n")
+def diagnostic_defaults(arguments):
+    if any(arg == "--diagnostic-format" or arg.startswith("--diagnostic-format=") for arg in arguments):
+        return []
+    return ["--diagnostic-format", "short"]
 
 
-def write_compiler_source(path, source, with_anchors, site=False):
-    body = inject(source) if with_anchors else source
+PREVIEW_IMAGE_HELPER = '''#let __ypst_preview_image(url, ..args) = {
+  let picture = image(..args)
+  show image: it => {
+    let attrs = (src: url,)
+    if it.alt != none { attrs.insert("alt", it.alt) }
+    if it.width != auto { attrs.insert("style", "width: " + repr(it.width)) }
+    if it.height != auto { attrs.insert("style", "height: " + repr(it.height)) }
+    html.elem("img", attrs: attrs)
+  }
+  picture
+}
+'''
+
+
+def write_compiler_source(path, source, with_anchors, site=False, preview=None):
+    try:
+        body = inject(source) if with_anchors else source
+        if preview:
+            body = rewrite_main_images(body, preview[0], preview[1], preview[2])
+            body = PREVIEW_IMAGE_HELPER + body
+    except ValueError as error:
+        if not preview:
+            raise
+        # Keep watch alive while an editor temporarily contains invalid syntax.
+        print(f"typst.py: preview preprocessing skipped: {error}", file=sys.stderr, flush=True)
+        body = source
     with tempfile.NamedTemporaryFile(
         mode="w", encoding="utf-8", newline="\n", suffix=".tmp",
         prefix=".typst-source-", dir=path.parent, delete=False,
@@ -44,7 +66,7 @@ def write_compiler_source(path, source, with_anchors, site=False):
         temporary.unlink(missing_ok=True)
 
 
-def make_compiler_source(source, with_anchors, site=False):
+def make_compiler_source(source, with_anchors, site=False, preview=None):
     """Create a temporary entry beside the source to preserve relative paths."""
     original = source.read_text(encoding="utf-8")
     entry = tempfile.NamedTemporaryFile(
@@ -54,17 +76,11 @@ def make_compiler_source(source, with_anchors, site=False):
     entry_path = Path(entry.name)
     entry.close()
     try:
-        write_compiler_source(entry_path, original, with_anchors, site)
+        write_compiler_source(entry_path, original, with_anchors, site, preview)
     except BaseException:
         entry_path.unlink(missing_ok=True)
         raise
     return entry_path, original
-
-
-def normalized_path(value):
-    if value.startswith("\\\\?\\"):
-        value = value[4:]
-    return Path(value).resolve()
 
 
 def shared_assets(site_root):
@@ -97,55 +113,10 @@ def assets_prefix(directory, page_dir, port=None, root=None):
     return quote(relative.rstrip("/") + "/", safe="/.")
 
 
-def image_sources(deps_path, root):
-    """Index dependency image bytes so Typst data URIs can map back to files."""
-    try:
-        dependencies = json.loads(deps_path.read_text(encoding="utf-8")).get("inputs", [])
-    except (OSError, ValueError):
-        return {}
-    by_digest = {}
-    for item in dependencies:
-        try:
-            path = normalized_path(item)
-            relative = path.relative_to(root)
-            if path.suffix.lower() not in {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".avif"}:
-                continue
-            data = path.read_bytes()
-            by_digest.setdefault(hashlib.sha256(data).digest(), relative.as_posix())
-        except (OSError, ValueError):
-            continue
-    return by_digest
-
-
-IMAGE_URI = re.compile(r'(?P<prefix>\bsrc=["\'])data:(?P<mime>image/[^;,"\']+);base64,(?P<data>[A-Za-z0-9+/=]+)(?P<suffix>["\'])', re.I)
 RELOAD_SCRIPT = """<script>(()=>{let stamp=null;async function poll(){try{const r=await fetch('/__typst_bundle_stamp',{cache:'no-store'});const n=await r.text();if(stamp!==null&&n!==stamp)location.reload();stamp=n}catch{}setTimeout(poll,800)}poll()})();</script>"""
 
 
-def externalize_watch_resources(html_path, deps_path, root, port, site):
-    html = html_path.read_text(encoding="utf-8")
-    sources = image_sources(deps_path, root) if site else {}
-
-    def replace(match):
-        try:
-            data = base64.b64decode(match.group("data"), validate=True)
-        except ValueError:
-            return match.group(0)
-        relative = sources.get(hashlib.sha256(data).digest())
-        if relative is None:
-            return match.group(0)
-        url = f"http://127.0.0.1:{port}/" + quote(relative, safe="/")
-        return match.group("prefix") + url + match.group("suffix")
-
-    if site:
-        html = IMAGE_URI.sub(replace, html)
-    if "__typst_bundle_stamp" not in html:
-        html = html.replace("</body>", RELOAD_SCRIPT + "</body>") if "</body>" in html else html + RELOAD_SCRIPT
-    temporary = html_path.with_suffix(".tmp")
-    write_text(temporary, html)
-    temporary.replace(html_path)
-
-
-def serve(root, bundle_html, port, allow_fallback=False):
+def serve(root, bundle_html, port, allow_fallback=False, source_root=None):
     class Handler(SimpleHTTPRequestHandler):
         def do_GET(self):
             if self.path.split("?", 1)[0] == "/__typst_bundle_stamp":
@@ -161,7 +132,34 @@ def serve(root, bundle_html, port, allow_fallback=False):
                 self.end_headers()
                 self.wfile.write(body)
                 return
+            if source_root is not None and self.path.split("?", 1)[0] in ("/", "/index.html"):
+                try:
+                    html = bundle_html.read_text(encoding="utf-8")
+                except OSError:
+                    self.send_error(503, "Document is compiling")
+                    return
+                html = html.replace("</body>", RELOAD_SCRIPT + "</body>")
+                body = html.encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(body)
+                return
             super().do_GET()
+
+        def translate_path(self, path):
+            from urllib.parse import unquote
+            path_only = urlsplit(path).path
+            if source_root is not None and path_only.startswith("/__source/"):
+                target = (source_root / unquote(path_only[len("/__source/"):])).resolve()
+                try:
+                    target.relative_to(source_root)
+                except ValueError:
+                    return str(source_root / ".ypst-invalid-path")
+                return str(target)
+            return super().translate_path(path)
 
         def log_message(self, fmt, *args):
             pass
@@ -214,15 +212,18 @@ def main():
         parser.error("--port must be between 0 and 65535")
     if str(options.source) == "-" or str(options.output) == "-":
         parser.error("stdin and stdout are not supported")
+    if options.command == "watch" and (options.output is not None or options.site_root is not None or options.no_serve or options.assets_url is not None):
+        parser.error("watch uses a temporary preview site; output, --site-root, --assets-url and --no-serve are compile-only")
     source = options.source.resolve()
     root = Path.cwd().resolve()
-    site_root = options.site_root.resolve() if options.site_root is not None else None
+    cache = tempfile.TemporaryDirectory(prefix="ypst-preview-") if options.command == "watch" else None
+    site_root = Path(cache.name) if cache else (options.site_root.resolve() if options.site_root is not None else None)
     if site_root is not None and options.output is None:
         try:
             relative_source = source.relative_to(root)
         except ValueError:
             parser.error("source must be inside the current working directory when output is omitted")
-        requested = site_root / relative_source.with_suffix("")
+        requested = site_root / "page" if cache else site_root / relative_source.with_suffix("")
     elif options.output is None:
         requested = source.with_suffix(".html")
     else:
@@ -235,7 +236,7 @@ def main():
            x.startswith(("--format=", "-f=", "--deps=", "--deps-format=")) for x in extra):
         parser.error("format and dependency output are managed by the wrapper")
 
-    if options.command == "watch" and not options.no_serve:
+    if options.command == "watch" and not options.no_serve and cache is None:
         try:
             requested.relative_to(root)
             if site_root is not None and options.assets_url is None:
@@ -265,17 +266,18 @@ def main():
     entry_path = None
     process = None
     try:
-        entry_path, last_text = make_compiler_source(source, not options.no_line_anchors, site_root is not None)
         port = None
         if options.command == "watch" and not options.no_serve:
             requested_port = 3000 if options.port is None else options.port
-            server = serve(root, bundle_html, requested_port, allow_fallback=options.port is None)
+            server = serve(site_root, bundle_html, requested_port, allow_fallback=options.port is None, source_root=root)
             port = server.server_address[1]
-            relative_html = bundle_html.relative_to(root).as_posix()
-            print(f"typst.py: preview http://127.0.0.1:{port}/{quote(relative_html, safe='/')}", flush=True)
+            print(f"Preview: http://127.0.0.1:{port}/", flush=True)
+        preview = (source.parent, root, f"http://127.0.0.1:{port}") if cache else None
+        entry_path, last_text = make_compiler_source(source, not options.no_line_anchors, site_root is not None, preview)
         compiler_options = ["--format", "bundle" if site_root else "html", "--features", "bundle,html" if site_root else "html", "--deps", str(deps_path)]
+        compiler_options.extend(diagnostic_defaults(extra))
         if site_root is not None:
-            prefix = options.assets_url or assets_prefix(assets_dir, bundle_dir, port=port, root=root if port is not None else None)
+            prefix = options.assets_url or assets_prefix(assets_dir, bundle_dir, port=port, root=site_root if port is not None else None)
             compiler_options.extend(["--input", "ypst-template-bundle=true", "--input", f"ypst-template-assets-prefix={prefix}"])
         if not any(x == "--root" or x.startswith("--root=") for x in extra):
             compiler_options.extend(["--root", "."])
@@ -290,13 +292,12 @@ def main():
         while process.poll() is None:
             current = source.read_text(encoding="utf-8")
             if current != last_text:
-                write_compiler_source(entry_path, current, not options.no_line_anchors, site_root is not None)
+                write_compiler_source(entry_path, current, not options.no_line_anchors, site_root is not None, preview)
                 last_text = current
             try:
                 compiled = bundle_html.stat().st_mtime_ns
-                if compiled != last_compiled and not options.no_serve:
-                    externalize_watch_resources(bundle_html, deps_path, root, port, site_root is not None)
-                    last_compiled = bundle_html.stat().st_mtime_ns
+                if compiled != last_compiled:
+                    last_compiled = compiled
                 last_error = None
             except FileNotFoundError:
                 pass
@@ -322,6 +323,8 @@ def main():
         if entry_path is not None:
             entry_path.unlink(missing_ok=True)
         deps_path.unlink(missing_ok=True)
+        if cache is not None:
+            cache.cleanup()
 
 
 if __name__ == "__main__":

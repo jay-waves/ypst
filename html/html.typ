@@ -59,19 +59,14 @@
         html.elem("style", attrs: ("data-theme": theme), read("theme.css") + "\n" + read("footnotes.css") + "\n" + read("headings.css"))
     }
     block(html.div(class: "typst-document", body))
-    if bundled {
-        html.elem("script", attrs: (src: assets + "links.js"))
-        html.elem("script", attrs: (src: assets + "footnotes.js"))
-        html.elem("script", attrs: (src: assets + "headings.js"))
-        html.elem("script", attrs: (src: assets + "line_navigation.js"))
-    } else {
-        html.elem("script", "(() => {\n" + read("links.js") + "\n" + read("footnotes.js") + "\n" + read("headings.js") + "\n" + read("line_navigation.js") + "\n})();")
-    }
+    // Keep the small interactive scripts together so they share helpers and
+    // do not require separate requests in site mode.
+    html.elem("script", "(() => {\n" + read("links.js") + "\n" + read("footnotes.js") + "\n" + read("headings.js") + "\n" + read("line_navigation.js") + "\n})();")
     context if query(raw.where(lang: "mermaid")).len() > 0 {
         if bundled {
             html.elem("link", attrs: (rel: "stylesheet", href: assets + "mermaid.css"))
             html.elem("script", attrs: (src: assets + "pele.global.js"))
-            html.elem("script", attrs: (src: assets + "mermaid.js"))
+            html.elem("script", read("mermaid.js"))
         } else {
             html.elem("style", read("mermaid.css"))
             // HTML export rejects U+0085; preserve the JavaScript value with an escape.

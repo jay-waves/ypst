@@ -86,23 +86,34 @@ python typst.py compile note.typ --site-root _site
 The default output for `note.typ` is `note.html`; an explicit output selects a
 different HTML file. With `--site-root _site`, the wrapper uses bundle export:
 `note.typ` produces `_site/note/index.html`, with source paths relative to the
-current working directory preserved. CSS and JavaScript are stored under
-`_site/_shared/typst/<content-hash>/` and reused across builds. An explicit output in
+current working directory preserved. CSS and the large Pele JavaScript library
+are stored under `_site/_shared/typst/<content-hash>/` and reused across builds;
+small interactive scripts are embedded in each HTML page. An explicit output in
 site mode selects a bundle directory. Compile output references shared assets by
 relative URL; deploy the site directory together. Use `--assets-url /static/`
 with `--site-root` to specify a public URL prefix for the shared directory. The
 public URL must be mapped to the generated content-hash directory by your site.
 
-In watch mode, `typst.py` serves the current working directory on
-`127.0.0.1:3000`; if that port is already in use, it picks a free port. It
-prints the preview URL and reloads the page after recompilation. Use
-`--port 3001` to select a port, `--port 0` to request a free port, or
-`--no-serve` to disable preview. In site mode watch rewrites ordinary `image("path")`
-data URIs to URLs for matching source images under the current working
-directory; the files stay in place. Absolute resource URLs keep working if the
-HTML page moves elsewhere while the watch server is running. Watch output uses
-local preview URLs and is intended for preview; use `compile` for a deployable
-site. In `compile` mode images remain embedded by Typst.
+In watch mode, `typst.py` creates a temporary bundle in the system temporary
+directory and serves it on `127.0.0.1:3000`; if that port is already in use, it
+picks a free port. It prints a preview URL and reloads after recompilation. Use
+`--port 3001` to select a port, or `--port 0` to request a free port. Watch
+does not write an HTML file or site to the project; the temporary site is
+removed when watch exits. Output paths, `--site-root`, `--assets-url`, and
+`--no-serve` are not supported in watch mode. Use `compile` for a deployable
+site or standalone HTML.
+
+Typst diagnostics use `short` format by default. Pass `--diagnostic-format
+human` after `--` to select the detailed format. The preview address is printed
+as `Preview: http://127.0.0.1:PORT/`.
+
+For watch previews only, simple literal `image("path")` calls in the main
+file are rewritten to local HTTP URLs for existing PNG, JPEG, WebP and SVG
+files inside the current working directory. One percentage `width` or `height`
+argument is supported. Other arguments, dynamic paths, images from included
+files, and generated images keep Typst's native HTML output. The preview server
+serves project files from the current working directory; images stay in place.
+In `compile` mode images remain embedded by Typst.
 `--no-line-anchors` bypasses source instrumentation. Keep the installed Typst
 package in sync with the checkout using `python install.py`.
 
