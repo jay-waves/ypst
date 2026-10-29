@@ -66,6 +66,10 @@ Defaults are `theme: "light"` and `layout: "portrait"`:
 
 PDF uses native footnotes. HTML embeds the theme and interactive scripts by default. Click a footnote marker to expand or close it; opening another footnote closes the previous one. Headings are collapsible; inline equations use MathML and display equations use Typst-rendered SVG. SVG equations are not selectable as math. PDF and HTML layouts may differ.
 
+The Python wrapper compacts display-equation SVGs after export: repeated glyphs
+share document-level definitions, glyph IDs are shortened, and default fills
+inherit the theme color through CSS. Explicit colors and path coordinates are preserved.
+
 HTML documents containing Mermaid code blocks use the bundled Pele 1.6.0
 browser build. This affects HTML only; PDF keeps the code block as code. Pele
 supports a subset of Mermaid syntax. Its license is in `html/LICENSE-Pele.txt`.
@@ -88,9 +92,10 @@ python typst.py compile note.typ --site-root _site
 The default output for `note.typ` is `note.html`; an explicit output selects a
 different HTML file. With `--site-root _site`, the wrapper uses bundle export:
 `note.typ` produces `_site/note/index.html`, with source paths relative to the
-current working directory preserved. CSS and the large Pele JavaScript library
-are stored under `_site/_shared/typst/<content-hash>/` and reused across builds;
-small interactive scripts are embedded in each HTML page. An explicit output in
+current working directory preserved. Merged CSS (`theme.css`), interactive scripts
+(`theme.js`), and the Pele renderer with its initializer (`pele.js`) are stored under `_site/_shared/typst/<content-hash>/` and reused across builds;
+pages share these files, and load `pele.js` only when Mermaid diagrams are present.
+An explicit output in
 site mode selects a bundle directory. Compile output references shared assets by
 relative URL; deploy the site directory together. Use `--assets-url /static/`
 with `--site-root` to specify a public URL prefix for the shared directory. The

@@ -6,32 +6,38 @@
             const wrapper = details.parentElement;
             const aside = details.querySelector(':scope > aside');
             if (!aside) return;
-            const label = aside.querySelector(':scope > .sidenote-label');
-            label.setAttribute('aria-label', 'Close sidenote and return to reference');
             aside.id = `sidenote-panel-${index + 1}`;
             aside.hidden = true;
             const marker = document.createElement('button');
             marker.type = 'button';
             marker.id = `${aside.id}-ref`;
-            label.href = new URL(`#${marker.id}`, document.URL).href;
             marker.className = 'sidenote-marker';
-            marker.textContent = '*';
+            marker.textContent = '†';
             marker.setAttribute('aria-label', 'Toggle sidenote');
             marker.setAttribute('aria-controls', aside.id);
             marker.setAttribute('aria-expanded', 'false');
             const sup = document.createElement('sup');
             sup.append(marker);
             const body = wrapper.querySelector(':scope > .sidenote-body');
-            const last = body.lastElementChild;
-            (last?.matches('p') ? last : body).append(sup);
+            // Descend through trailing block wrappers rather than placing the
+            // reference after them, which would start a separate line.
+            let tail = body;
+            while (true) {
+                while (tail.lastChild?.nodeType === Node.TEXT_NODE && !tail.lastChild.textContent.trim()) {
+                    tail.lastChild.remove();
+                }
+                const last = tail.lastChild;
+                if (last?.nodeType === Node.ELEMENT_NODE &&
+                    ['block', 'list-item', 'flow-root'].includes(getComputedStyle(last).display)) {
+                    tail = last;
+                } else break;
+            }
+            if (tail.lastChild?.nodeType === Node.TEXT_NODE) {
+                tail.lastChild.textContent = tail.lastChild.textContent.trimEnd();
+            }
+            // Keep the reference attached to the preceding text at line breaks.
+            tail.append(document.createTextNode('\u2060'), sup);
             details.replaceWith(aside);
-            label.addEventListener('click', event => {
-                event.preventDefault();
-                aside.hidden = true;
-                marker.setAttribute('aria-expanded', 'false');
-                marker.focus({ preventScroll: true });
-                marker.scrollIntoView({ block: 'nearest' });
-            });
             marker.addEventListener('click', () => {
                 aside.hidden = !aside.hidden;
                 marker.setAttribute('aria-expanded', String(!aside.hidden));

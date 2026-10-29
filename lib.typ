@@ -166,11 +166,11 @@
     })
 }
 
-#let _sidenote_content(content) = context {
-    let equation-position = counter(math.equation).get()
+#let _sidenote_content(content) = {
+    // Unnumbered equations do not advance the equation counter. Avoid restoring
+    // a contextual snapshot, which chains layout dependencies across sidenotes.
     show math.equation: set math.equation(numbering: none)
     content
-    counter(math.equation).update(equation-position)
 }
 
 /// Body with a right-hand sidenote; `side-image` accepts a string, `path`, or image content.

@@ -14,11 +14,13 @@ import threading
 import time
 from urllib.parse import quote, urlsplit
 
+from tools.html_equations import optimize_file
 from tools.html_line_anchors import check_document_settings, inject, rewrite_main_images
 
 ASSET_NAMES = (
     "theme.css", "footnotes.css", "headings.css", "mermaid.css",
-    "pele.global.js", "LICENSE-Pele.txt",
+    "links.js", "footnotes.js", "headings.js", "line_navigation.js",
+    "pele.global.js", "mermaid.js", "LICENSE-Pele.txt",
 )
 
 
@@ -86,7 +88,16 @@ def make_compiler_source(source, with_anchors, site=False, preview=None):
 
 def shared_assets(site_root):
     package_html = Path(__file__).resolve().parent / "html"
-    resources = {name: (package_html / name).read_bytes() for name in ASSET_NAMES}
+    sources = {name: (package_html / name).read_bytes() for name in ASSET_NAMES}
+    resources = {
+        "theme.css": b"\n".join(sources[name] for name in
+                                  ("theme.css", "footnotes.css", "headings.css", "mermaid.css")),
+        "theme.js": b"(() => {\n" + b"\n".join(sources[name] for name in
+                    ("links.js", "footnotes.js", "headings.js", "line_navigation.js")) + b"\n})();\n",
+        "pele.js": b"/*\n" + sources["LICENSE-Pele.txt"].replace(b"*/", b"* /") + b"\n*/\n"
+                   + sources["pele.global.js"] + b"\n;\n" + sources["mermaid.js"],
+        "LICENSE-Pele.txt": sources["LICENSE-Pele.txt"],
+    }
     fingerprint = hashlib.sha256()
     for name, data in resources.items():
         fingerprint.update(name.encode("utf-8"))
@@ -284,7 +295,10 @@ def main():
             compiler_options.extend(["--root", "."])
         compiler_options.extend(extra)
         if options.command == "compile":
-            return subprocess.call(["typst", "compile", *compiler_options, str(entry_path), str(requested)])
+            result = subprocess.call(["typst", "compile", *compiler_options, str(entry_path), str(requested)])
+            if result == 0:
+                optimize_file(bundle_html)
+            return result
 
         command = ["typst", "watch", *compiler_options, "--no-serve", str(entry_path), str(requested)]
         process = subprocess.Popen(command)
@@ -298,7 +312,8 @@ def main():
             try:
                 compiled = bundle_html.stat().st_mtime_ns
                 if compiled != last_compiled:
-                    last_compiled = compiled
+                    optimize_file(bundle_html)
+                    last_compiled = bundle_html.stat().st_mtime_ns
                 last_error = None
             except FileNotFoundError:
                 pass

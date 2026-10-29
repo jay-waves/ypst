@@ -14,8 +14,6 @@ body .sidenote-toggle > summary::marker { content: ""; }
 
 /* Native Typst footnotes use a quote-like panel. */
 body .inline-footnote figure { min-width: 0; max-width: 100%; }
-body .sidenote-panel > .sidenote-label,
-body .sidenote-panel > .sidenote-label:hover { color: var(--md-muted); text-decoration: none; }
 body .sidenote-marker {
   padding: 0;
   border: 0;
@@ -25,11 +23,9 @@ body .sidenote-marker {
 }
 /* Enlarge hit targets without changing line wrapping or superscript metrics. */
 body .sidenote-marker,
-body [role="doc-noteref"] > a,
-body .sidenote-panel > .sidenote-label { position: relative; color: var(--md-muted); }
+body [role="doc-noteref"] > a { position: relative; color: var(--md-muted); }
 body .sidenote-marker::after,
-body [role="doc-noteref"] > a::after,
-body .sidenote-panel > .sidenote-label::after { content: ""; position: absolute; inset: -10px -9px; }
+body [role="doc-noteref"] > a::after { content: ""; position: absolute; inset: -10px -9px; }
 
 /* Inline note markers stay undecorated, including while hovered. */
 body .sidenote-marker,
@@ -41,44 +37,17 @@ body .sidenote-marker:focus-visible { outline: 2px solid var(--md-accent); outli
 /* Keep note layout self-contained, including when an exporter moves the panel
  * outside .typst-document. Place this after the general block/quote rules. */
 body :is(.inline-footnote, .sidenote-panel) {
-  display: grid;
-  grid-template-columns: minmax(max-content, calc(var(--md-block-indent) - .75rem - 2px)) minmax(0, 1fr);
-  align-items: start;
-  gap: 0 .5rem;
+  display: block;
   box-sizing: border-box;
   min-width: 0;
-  margin: .35em 0 1rem;
-  padding: .2rem 0 .2rem .25rem;
-  border-left: 2px solid var(--md-border-muted);
+  margin: .35em 0 1rem 1rem;
+  padding: .2rem 0 .2rem calc(var(--md-block-indent) - 1rem - 2px);
+  border-left: 2px dashed var(--md-border-muted);
   color: var(--md-muted);
   font-size: 1em;
   line-height: inherit;
 }
-/* Footnote text shares the indent of other blocks. */
-body .inline-footnote {
-  display: block;
-  margin-left: 1rem;
-  padding-left: calc(var(--md-block-indent) - 1rem - 2px);
-  border-left-style: dashed;
-}
-body .sidenote-panel > .sidenote-label {
-  grid-column: 1;
-  grid-row: 1;
-  align-self: start;
-  margin: 0;
-  padding: 0;
-  text-align: right;
-  white-space: nowrap;
-  line-height: inherit;
-}
-body .sidenote-panel > .note-content {
-  grid-column: 2;
-  grid-row: 1;
-  min-width: 0;
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-body .inline-footnote > .note-content { min-width: 0; overflow-wrap: anywhere; }
+body :is(.inline-footnote, .sidenote-panel) > .note-content { min-width: 0; overflow-wrap: anywhere; }
 body .note-content > :first-child { margin-top: 0; }
 body .note-content > :last-child { margin-bottom: 0; }
 

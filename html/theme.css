@@ -428,6 +428,7 @@ body math { font-family: "New Computer Modern Math", math; }
 
 body .display-equation { margin: 1rem 0; overflow-x: auto; }
 body .display-equation > svg { margin-inline: auto; }
+body .display-equation > svg[data-inherit-fill] { fill: var(--md-fg); }
 
 /* Common Markdown footnote output (markdown-it-footnote and reading views).
  * These remain endnotes; CSS does not turn them into Typst disclosures. */

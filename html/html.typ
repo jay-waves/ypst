@@ -8,9 +8,8 @@
         block(html.div(class: "sidenote", [
             #html.div(class: "sidenote-body", body)
             #html.elem("details", attrs: ("class": "sidenote-toggle"), [
-                #html.elem("summary", "*")
+                #html.elem("summary", "†")
                 #html.elem("aside", attrs: (role: "note", class: "sidenote-panel"), [
-                    #html.elem("a", attrs: (class: "sidenote-label",), "*")
                     #html.div(class: "note-content", aside)
                 ])
             ])
@@ -57,20 +56,18 @@
     let assets = sys.inputs.at("ypst-template-assets-prefix", default: "assets/")
     if bundled {
         html.elem("link", attrs: (rel: "stylesheet", href: assets + "theme.css", "data-theme": theme))
-        html.elem("link", attrs: (rel: "stylesheet", href: assets + "footnotes.css"))
-        html.elem("link", attrs: (rel: "stylesheet", href: assets + "headings.css"))
     } else {
         html.elem("style", attrs: ("data-theme": theme), read("theme.css") + "\n" + read("footnotes.css") + "\n" + read("headings.css"))
     }
     block(html.div(class: "typst-document", body))
-    // Keep the small interactive scripts together so they share helpers and
-    // do not require separate requests in site mode.
-    html.elem("script", "(() => {\n" + read("links.js") + "\n" + read("footnotes.js") + "\n" + read("headings.js") + "\n" + read("line_navigation.js") + "\n})();")
+    if bundled {
+        html.elem("script", attrs: (src: assets + "theme.js"))
+    } else {
+        html.elem("script", "(() => {\n" + read("links.js") + "\n" + read("footnotes.js") + "\n" + read("headings.js") + "\n" + read("line_navigation.js") + "\n})();")
+    }
     context if query(raw.where(lang: "mermaid")).len() > 0 {
         if bundled {
-            html.elem("link", attrs: (rel: "stylesheet", href: assets + "mermaid.css"))
-            html.elem("script", attrs: (src: assets + "pele.global.js"))
-            html.elem("script", read("mermaid.js"))
+            html.elem("script", attrs: (src: assets + "pele.js"))
         } else {
             html.elem("style", read("mermaid.css"))
             // HTML export rejects U+0085; preserve the JavaScript value with an escape.

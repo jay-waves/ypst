@@ -50,7 +50,7 @@ class WrapperTests(unittest.TestCase):
         self.assertEqual(wrapper.diagnostic_defaults(["--diagnostic-format", "human"]), [])
         self.assertEqual(wrapper.diagnostic_defaults(["--diagnostic-format=human"]), [])
 
-    def test_site_inlines_small_scripts_and_shares_pele(self):
+    def test_site_shares_merged_styles_scripts_and_optional_pele(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as directory:
             root = Path(directory)
             source = root / "note.typ"
@@ -61,14 +61,29 @@ class WrapperTests(unittest.TestCase):
                                     cwd=ROOT, capture_output=True)
             self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
             html = (root / "site" / root.name / "note" / "index.html").read_text(encoding="utf-8")
-            self.assertIn('const sameDocumentFragment =', html)
-            self.assertIn('source-line-anchor[data-line]', html)
-            self.assertIn('pele.global.js', html)
+            self.assertNotIn('const sameDocumentFragment =', html)
+            self.assertNotIn('source-line-anchor[data-line]', html)
+            self.assertIn('theme.css', html)
+            self.assertIn('theme.js', html)
+            self.assertIn('pele.js', html)
+            self.assertNotIn('footnotes.css', html)
             self.assertNotIn('src="links.js"', html)
-            self.assertNotIn('src="mermaid.js"', html)
             shared = list((root / "site" / "_shared" / "typst").iterdir())[0]
-            self.assertTrue((shared / "pele.global.js").is_file())
-            self.assertFalse((shared / "links.js").exists())
+            script = (shared / "theme.js").read_text(encoding="utf-8")
+            self.assertIn('const sameDocumentFragment =', script)
+            self.assertIn('source-line-anchor[data-line]', script)
+            self.assertIn('window.pele.mount', (shared / "pele.js").read_text(encoding="utf-8"))
+            self.assertIn('.sidenote-marker', (shared / "theme.css").read_text(encoding="utf-8"))
+            self.assertEqual(wrapper.shared_assets(root / "site"), shared)
+            source.write_text('#import "../lib.typ": template\n#show: template\nPlain text.\n',
+                              encoding="utf-8", newline="\n")
+            result = subprocess.run([sys.executable, str(ROOT / "typst.py"), "compile", str(source),
+                                     "--site-root", str(root / "site"), "--", "--root", str(ROOT)],
+                                    cwd=ROOT, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
+            html = (root / "site" / root.name / "note" / "index.html").read_text(encoding="utf-8")
+            self.assertNotIn('pele.js', html)
+            self.assertIn('theme.js', html)
 
     def test_native_html_embeds_resources_and_pele_only_when_needed(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as directory:
