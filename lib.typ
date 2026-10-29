@@ -4,8 +4,8 @@
 /// ```typst
 /// #import "../appx/theme.typ": template, sidenote, theorem, lemma, corollary,
 ///   definition, proof, fletcher, diagram, node, edge
-/// #show: template.with(theme: "light", layout: "portrait")
 /// #set document(title: "Notes", keywords: ("robotics",))
+/// #show: template.with(theme: "light", layout: "portrait")
 /// ```
 ///
 /// Feature index:

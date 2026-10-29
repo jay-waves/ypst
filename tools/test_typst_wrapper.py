@@ -17,6 +17,34 @@ spec.loader.exec_module(wrapper)
 
 
 class WrapperTests(unittest.TestCase):
+    def test_document_metadata_error_removes_temporary_source(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            root = Path(directory)
+            source = root / "note.typ"
+            source.write_text('#import "../lib.typ": template\n#show: template\n'
+                              '#set document(title: "Metadata test")\n\n= Heading\n',
+                              encoding="utf-8", newline="\n")
+            for site in (False, True):
+                output = root / ("page" if site else "out.html")
+                command = [sys.executable, str(ROOT / "typst.py"), "compile", str(source), str(output)]
+                if site:
+                    command.extend(["--site-root", str(root / "site")])
+                result = subprocess.run(command + ["--", "--root", str(ROOT)], cwd=ROOT, capture_output=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('line 3: #set document must appear before #show: template', result.stderr.decode())
+                self.assertFalse(list(root.glob('.typst-bundle-*.typ')))
+
+    def test_compiler_error_removes_temporary_source(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            root = Path(directory)
+            source = root / "note.typ"
+            source.write_text('#unknown_function()\n', encoding="utf-8", newline="\n")
+            result = subprocess.run([sys.executable, str(ROOT / "typst.py"), "compile",
+                                     str(source), str(root / "out.html"), "--", "--root", str(ROOT)],
+                                    cwd=ROOT, capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse(list(root.glob('.typst-bundle-*.typ')))
+
     def test_short_diagnostics_are_default_and_overridable(self):
         self.assertEqual(wrapper.diagnostic_defaults([]), ["--diagnostic-format", "short"])
         self.assertEqual(wrapper.diagnostic_defaults(["--diagnostic-format", "human"]), [])

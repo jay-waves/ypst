@@ -64,7 +64,7 @@ Defaults are `theme: "light"` and `layout: "portrait"`:
 - Native equation, figure, and table references. PDF equations use chapter prefixes; HTML equations use continuous numbering.
 - `diagram`, `node`, `edge`: Fletcher helpers with theme colors; `fletcher` exposes the full module.
 
-PDF uses native footnotes. HTML embeds the theme and interactive scripts by default. Click a footnote marker to expand or close it; opening another footnote closes the previous one. Headings are collapsible; equations use MathML. PDF and HTML layouts may differ.
+PDF uses native footnotes. HTML embeds the theme and interactive scripts by default. Click a footnote marker to expand or close it; opening another footnote closes the previous one. Headings are collapsible; inline equations use MathML and display equations use Typst-rendered SVG. SVG equations are not selectable as math. PDF and HTML layouts may differ.
 
 HTML documents containing Mermaid code blocks use the bundled Pele 1.6.0
 browser build. This affects HTML only; PDF keeps the code block as code. Pele
@@ -73,6 +73,8 @@ supports a subset of Mermaid syntax. Its license is in `html/LICENSE-Pele.txt`.
 ### HTML export
 
 The Python wrapper adds source-line markers without changing the source file.
+Place `#set document(...)` before `#show: template`; the wrapper reports a
+clear error for this ordering mistake without changing the source.
 By default it exports a standalone HTML file containing the theme, scripts and
 images:
 

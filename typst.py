@@ -14,7 +14,7 @@ import threading
 import time
 from urllib.parse import quote, urlsplit
 
-from tools.html_line_anchors import inject, rewrite_main_images
+from tools.html_line_anchors import check_document_settings, inject, rewrite_main_images
 
 ASSET_NAMES = (
     "theme.css", "footnotes.css", "headings.css", "mermaid.css",
@@ -43,6 +43,7 @@ PREVIEW_IMAGE_HELPER = '''#let __ypst_preview_image(url, ..args) = {
 
 
 def write_compiler_source(path, source, with_anchors, site=False, preview=None):
+    check_document_settings(source)
     try:
         body = inject(source) if with_anchors else source
         if preview:

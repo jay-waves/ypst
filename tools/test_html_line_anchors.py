@@ -1,9 +1,19 @@
 import unittest
 
-from html_line_anchors import inject
+from html_line_anchors import check_document_settings, inject
 
 
 class AnchorTests(unittest.TestCase):
+    def test_document_setting_after_template_reports_line(self):
+        source = '#show: template\n#let title = "Test"\n#set document(title: title)\n'
+        with self.assertRaisesRegex(ValueError, 'line 3:.*before #show: template'):
+            check_document_settings(source)
+
+    def test_other_show_rules_and_correct_order_are_allowed(self):
+        for source in ('#set document(title: "Test")\n#show: template\n',
+                       '#show heading: strong\n#set document(title: "Test")\n'):
+            check_document_settings(source)
+
     def test_nested_code_and_multiline_paragraph(self):
         source = ('#let x = [Nested\n\nText]\n\n= Heading\n\n'
                   'First #strong[bold]\nsecond line.\n\n'

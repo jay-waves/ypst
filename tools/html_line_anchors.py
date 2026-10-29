@@ -6,6 +6,28 @@ from pathlib import Path
 from urllib.parse import quote
 
 
+def check_document_settings(source):
+    """Explain the template's top-level document metadata requirement."""
+    try:
+        from tree_sitter_language_pack import get_parser
+        data = source.encode("utf-8")
+        tree = get_parser("typst").parse(data)
+    except Exception as error:
+        raise ValueError(f"could not load the Typst grammar: {error}") from error
+    if tree.root_node.has_error:
+        return
+    template_seen = False
+    for node in tree.root_node.named_children:
+        if node.type != "code" or len(node.named_children) != 1:
+            continue
+        child = node.named_children[0]
+        text = data[child.start_byte:child.end_byte]
+        if child.type == "show" and re.match(rb"show\s*:\s*template\b", text):
+            template_seen = True
+        elif template_seen and child.type == "set" and re.match(rb"set\s+document\s*\(", text):
+            raise ValueError(f"line {node.start_point.row + 1}: #set document must appear before #show: template; move the document setting above the template show rule")
+
+
 def inject(source):
     try:
         from tree_sitter_language_pack import get_parser

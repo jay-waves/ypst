@@ -23,6 +23,10 @@
     // Heading and footnote formats are supplied by the public template.
     // HTML equations use native sequential numbering.
     set math.equation(numbering: "(1)")
+    show math.equation.where(block: true): it => {
+        set text(fill: if theme == "dark" { rgb("#f0f6fc") } else { rgb("#363733") })
+        html.div(class: "display-equation", html.frame(it))
+    }
     show heading: it => {
         show math.equation: math.bold
         it
