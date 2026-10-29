@@ -4,6 +4,7 @@ import argparse
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import hashlib
+import json
 import os
 from pathlib import Path
 import socket
@@ -44,7 +45,7 @@ PREVIEW_IMAGE_HELPER = '''#let __ypst_preview_image(url, ..args) = {
 '''
 
 
-def write_compiler_source(path, source, with_anchors, site=False, preview=None):
+def write_compiler_source(entry, source, with_anchors, site=False, preview=None):
     check_document_settings(source)
     try:
         body = inject(source) if with_anchors else source
@@ -57,33 +58,27 @@ def write_compiler_source(path, source, with_anchors, site=False, preview=None):
         # Keep watch alive while an editor temporarily contains invalid syntax.
         print(f"typst.py: preview preprocessing skipped: {error}", file=sys.stderr, flush=True)
         body = source
-    with tempfile.NamedTemporaryFile(
-        mode="w", encoding="utf-8", newline="\n", suffix=".tmp",
-        prefix=".typst-source-", dir=path.parent, delete=False,
-    ) as file:
-        temporary = Path(file.name)
-        file.write('#document("index.html")[\n' + body + "\n]\n" if site else body)
-    try:
-        temporary.replace(path)
-    finally:
-        temporary.unlink(missing_ok=True)
+    # Keep the original handle open: Windows deletes the file even if Python
+    # is forcibly terminated. Replacing the path would lose that guarantee.
+    entry.seek(0)
+    entry.write('#document("index.html")[\n' + body + "\n]\n" if site else body)
+    entry.truncate()
+    entry.flush()
 
 
 def make_compiler_source(source, with_anchors, site=False, preview=None):
-    """Create a temporary entry beside the source to preserve relative paths."""
+    """Keep relative imports intact and let the OS remove the temporary entry."""
     original = source.read_text(encoding="utf-8")
     entry = tempfile.NamedTemporaryFile(
-        mode="w", encoding="utf-8", newline="\n", suffix=".typ",
-        prefix=".typst-bundle-", dir=source.parent, delete=False,
+        mode="w+", encoding="utf-8", newline="\n", suffix=".typ",
+        prefix=".typst-bundle-", dir=source.parent,
     )
-    entry_path = Path(entry.name)
-    entry.close()
     try:
-        write_compiler_source(entry_path, original, with_anchors, site, preview)
+        write_compiler_source(entry, original, with_anchors, site, preview)
     except BaseException:
-        entry_path.unlink(missing_ok=True)
+        entry.close()
         raise
-    return entry_path, original
+    return entry, original
 
 
 def shared_assets(site_root):
@@ -125,12 +120,61 @@ def assets_prefix(directory, page_dir, port=None, root=None):
     return quote(relative.rstrip("/") + "/", safe="/.")
 
 
-RELOAD_SCRIPT = """<script>(()=>{let stamp=null;async function poll(){try{const r=await fetch('/__typst_bundle_stamp',{cache:'no-store'});const n=await r.text();if(stamp!==null&&n!==stamp)location.reload();stamp=n}catch{}setTimeout(poll,800)}poll()})();</script>"""
+RELOAD_SCRIPT = """<script>(()=>{let stamp=null,seq=null;async function poll(){try{const [r,c]=await Promise.all([fetch('/__typst_bundle_stamp',{cache:'no-store'}),fetch('/_control',{cache:'no-store'})]);const n=await r.text(),state=await c.json();if(stamp!==null&&n!==stamp){location.reload();return}stamp=n;if(state.seq!==seq&&state.hash){if(location.hash===state.hash)window.dispatchEvent(new Event('hashchange'));else location.hash=state.hash}seq=state.seq}catch{}setTimeout(poll,800)}poll()})();</script>"""
 
 
-def serve(root, bundle_html, port, allow_fallback=False, source_root=None):
+def serve(root, bundle_html, port, allow_fallback=False, source_root=None, stop=None):
+    control_lock = threading.Lock()
+    control = {"seq": 0, "hash": None}
+    stop = stop if stop is not None else threading.Event()
     class Handler(SimpleHTTPRequestHandler):
+        def send_json(self, status, value):
+            body = json.dumps(value).encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_POST(self):
+            if urlsplit(self.path).path != "/_control":
+                self.send_error(404)
+                return
+            try:
+                length = int(self.headers.get("Content-Length", ""))
+                if not 0 < length <= 1024 or self.headers.get_content_type() != "application/json":
+                    raise ValueError()
+                body = self.rfile.read(length)
+                # Consume the request body before responding, including on Windows.
+                expected = f"127.0.0.1:{self.server.server_address[1]}"
+                if self.headers.get("Host") != expected or (self.headers.get("Origin") and self.headers.get("Origin") != "http://" + expected):
+                    self.send_error(403)
+                    return
+                data = json.loads(body)
+                if not isinstance(data, dict):
+                    raise ValueError()
+                if data == {"action": "quit"}:
+                    self.send_json(200, {"ok": True})
+                    stop.set()
+                    return
+                line = data.get("line")
+                if set(data) != {"action", "line"} or data["action"] != "navigate" or type(line) is not int or not 1 <= line <= 9007199254740991:
+                    raise ValueError()
+            except (ValueError, UnicodeError):
+                self.send_error(400, "Invalid control request")
+                return
+            with control_lock:
+                control["seq"] += 1
+                control["hash"] = f"#L{line}"
+            self.send_json(200, {"ok": True})
+
         def do_GET(self):
+            if urlsplit(self.path).path == "/_control":
+                with control_lock:
+                    state = control.copy()
+                self.send_json(200, state)
+                return
             if self.path.split("?", 1)[0] == "/__typst_bundle_stamp":
                 try:
                     stamp = str(bundle_html.stat().st_mtime_ns)
@@ -202,6 +246,7 @@ def main():
     parser.add_argument("source", type=Path)
     parser.add_argument("output", nargs="?", type=Path)
     parser.add_argument("--no-line-anchors", action="store_true")
+    parser.add_argument("--stop-on-stdin", action="store_true", help="stop watch cleanly when stdin closes")
     parser.add_argument("--interval", type=float, default=0.5, help="source polling interval in seconds")
     parser.add_argument("--port", type=int, help="local preview server port in watch mode (default: 3000; 0 picks a free port)")
     parser.add_argument("--site-root", type=Path, help="enable site mode and write shared assets under this directory")
@@ -271,22 +316,20 @@ def main():
         bundle_dir = None
         bundle_html = requested
         bundle_html.parent.mkdir(parents=True, exist_ok=True)
-    deps_file = tempfile.NamedTemporaryFile(prefix=".typst-deps-", suffix=".json", dir=root, delete=False)
-    deps_path = Path(deps_file.name)
-    deps_file.close()
     server = None
-    entry_path = None
+    entry = None
     process = None
+    stop = threading.Event()
     try:
         port = None
         if options.command == "watch" and not options.no_serve:
             requested_port = 3000 if options.port is None else options.port
-            server = serve(site_root, bundle_html, requested_port, allow_fallback=options.port is None, source_root=root)
+            server = serve(site_root, bundle_html, requested_port, allow_fallback=options.port is None, source_root=root, stop=stop)
             port = server.server_address[1]
             print(f"Preview: http://127.0.0.1:{port}/", flush=True)
         preview = (source.parent, root, f"http://127.0.0.1:{port}") if cache else None
-        entry_path, last_text = make_compiler_source(source, not options.no_line_anchors, site_root is not None, preview)
-        compiler_options = ["--format", "bundle" if site_root else "html", "--features", "bundle,html" if site_root else "html", "--deps", str(deps_path)]
+        entry, last_text = make_compiler_source(source, not options.no_line_anchors, site_root is not None, preview)
+        compiler_options = ["--format", "bundle" if site_root else "html", "--features", "bundle,html" if site_root else "html"]
         compiler_options.extend(diagnostic_defaults(extra))
         if site_root is not None:
             prefix = options.assets_url or assets_prefix(assets_dir, bundle_dir, port=port, root=site_root if port is not None else None)
@@ -295,19 +338,26 @@ def main():
             compiler_options.extend(["--root", "."])
         compiler_options.extend(extra)
         if options.command == "compile":
-            result = subprocess.call(["typst", "compile", *compiler_options, str(entry_path), str(requested)])
+            result = subprocess.call(["typst", "compile", *compiler_options, entry.name, str(requested)])
             if result == 0:
                 optimize_file(bundle_html)
             return result
 
-        command = ["typst", "watch", *compiler_options, "--no-serve", str(entry_path), str(requested)]
-        process = subprocess.Popen(command)
+        command = ["typst", "watch", *compiler_options, "--no-serve", entry.name, str(requested)]
+        if options.stop_on_stdin:
+            def monitor_stdin():
+                try:
+                    sys.stdin.buffer.read()
+                finally:
+                    stop.set()
+            threading.Thread(target=monitor_stdin, daemon=True).start()
+        process = subprocess.Popen(command, stdin=subprocess.DEVNULL)
         last_compiled = None
         last_error = None
-        while process.poll() is None:
+        while process.poll() is None and not stop.is_set():
             current = source.read_text(encoding="utf-8")
             if current != last_text:
-                write_compiler_source(entry_path, current, not options.no_line_anchors, site_root is not None, preview)
+                write_compiler_source(entry, current, not options.no_line_anchors, site_root is not None, preview)
                 last_text = current
             try:
                 compiled = bundle_html.stat().st_mtime_ns
@@ -322,8 +372,8 @@ def main():
                 if message != last_error:
                     print(f"typst.py: {message}", file=sys.stderr, flush=True)
                     last_error = message
-            time.sleep(options.interval)
-        return process.returncode
+            stop.wait(options.interval)
+        return 0 if stop.is_set() else process.returncode
     except (OSError, ValueError) as error:
         print(f"typst.py: {error}", file=sys.stderr)
         return 1
@@ -336,9 +386,8 @@ def main():
         if server is not None:
             server.shutdown()
             server.server_close()
-        if entry_path is not None:
-            entry_path.unlink(missing_ok=True)
-        deps_path.unlink(missing_ok=True)
+        if entry is not None:
+            entry.close()
         if cache is not None:
             cache.cleanup()
 

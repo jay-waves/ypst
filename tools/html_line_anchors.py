@@ -6,6 +6,12 @@ from functools import lru_cache
 from pathlib import Path
 from urllib.parse import quote
 
+# TODO: Once a released py-tree-sitter contains the Point getter refcount fix,
+# verify the Windows wheel with long Typst documents before reconsidering .row.
+# 0.26.0's .row/.column return borrowed references; tuple indexing avoids them.
+# https://github.com/tree-sitter/py-tree-sitter/issues/487
+# https://github.com/tree-sitter/py-tree-sitter/blob/master/tree_sitter/binding/point.c
+
 
 @lru_cache(maxsize=1)
 def typst_parser():
@@ -31,7 +37,7 @@ def check_document_settings(source):
         if child.type == "show" and re.match(rb"show\s*:\s*template\b", text):
             template_seen = True
         elif template_seen and child.type == "set" and re.match(rb"set\s+document\s*\(", text):
-            line = data.count(b"\n", 0, node.start_byte) + 1
+            line = node.start_point[0] + 1
             raise ValueError(f"line {line}: #set document must appear before #show: template; move the document setting above the template show rule")
 
 
@@ -51,7 +57,7 @@ def inject(source):
     labels = set(re.findall(r"<L([1-9]\d*)>", source))
 
     def mark(node, heading=False):
-        line = data.count(b"\n", 0, node.start_byte) + 1
+        line = node.start_point[0] + 1
         if str(line) in labels:
             raise ValueError(f"line anchor L{line} conflicts with a source label")
         if line in anchors:

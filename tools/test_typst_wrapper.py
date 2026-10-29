@@ -1,4 +1,5 @@
 import importlib.util
+import json
 from pathlib import Path
 import subprocess
 import socket
@@ -17,6 +18,45 @@ spec.loader.exec_module(wrapper)
 
 
 class WrapperTests(unittest.TestCase):
+    def test_preview_control_navigation_and_quit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            page = root / "index.html"
+            page.write_text("<html><body>Preview</body></html>", encoding="utf-8")
+            stop = threading.Event()
+            server = wrapper.serve(root, page, 0, source_root=root, stop=stop)
+            url = f"http://127.0.0.1:{server.server_address[1]}"
+            def post(data, origin=None):
+                headers = {"Content-Type": "application/json"}
+                if origin:
+                    headers["Origin"] = origin
+                request = urllib.request.Request(url + "/_control", data=json.dumps(data).encode(), headers=headers)
+                return urllib.request.urlopen(request, timeout=2)
+            try:
+                html = urllib.request.urlopen(url, timeout=2).read().decode()
+                self.assertIn("fetch('/_control'", html)
+                with post({"action": "navigate", "line": 12}) as response:
+                    self.assertEqual(response.status, 200)
+                state = json.load(urllib.request.urlopen(url + "/_control", timeout=2))
+                self.assertEqual(state, {"seq": 1, "hash": "#L12"})
+                with post({"action": "navigate", "line": 12}):
+                    pass
+                self.assertEqual(json.load(urllib.request.urlopen(url + "/_control"))["seq"], 2)
+                for bad in ({"action": "navigate", "line": 0}, {"action": "navigate", "line": True}, {"action": "unknown"}):
+                    with self.assertRaises(urllib.error.HTTPError) as error:
+                        post(bad)
+                    self.assertEqual(error.exception.code, 400)
+                with self.assertRaises(urllib.error.HTTPError) as error:
+                    post({"action": "quit"}, origin="https://example.com")
+                self.assertEqual(error.exception.code, 403)
+                self.assertFalse(stop.is_set())
+                with post({"action": "quit"}):
+                    pass
+                self.assertTrue(stop.wait(2))
+            finally:
+                server.shutdown()
+                server.server_close()
+
     def test_document_metadata_error_removes_temporary_source(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as directory:
             root = Path(directory)
@@ -44,6 +84,33 @@ class WrapperTests(unittest.TestCase):
                                     cwd=ROOT, capture_output=True)
             self.assertNotEqual(result.returncode, 0)
             self.assertFalse(list(root.glob('.typst-bundle-*.typ')))
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows delete-on-close semantics")
+    def test_forced_termination_removes_temporary_source(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            source = Path(directory) / "note.typ"
+            source.write_text("Text.\n", encoding="utf-8", newline="\n")
+            script = (
+                "import sys, time; from pathlib import Path; "
+                "from typst import make_compiler_source; "
+                "entry, _ = make_compiler_source(Path(sys.argv[1]), False); "
+                "print(entry.name, flush=True); time.sleep(60)"
+            )
+            process = subprocess.Popen([sys.executable, "-c", script, str(source)],
+                                       cwd=ROOT, stdout=subprocess.PIPE, text=True)
+            try:
+                name = process.stdout.readline().strip()
+                self.assertTrue(name)
+                entry = Path(name)
+                self.assertTrue(entry.is_file())
+                process.kill()
+                process.wait(timeout=10)
+                self.assertFalse(entry.exists())
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=10)
+                process.stdout.close()
 
     def test_short_diagnostics_are_default_and_overridable(self):
         self.assertEqual(wrapper.diagnostic_defaults([]), ["--diagnostic-format", "short"])

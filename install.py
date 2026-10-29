@@ -28,9 +28,12 @@ def sync_package(source, target):
     source, target = Path(source).resolve(), Path(target).resolve()
     if source != target:
         target.mkdir(parents=True, exist_ok=True)
-        for name in ("typst.toml", "lib.typ"):
+        for name in ("typst.toml", "lib.typ", "typst.py"):
             shutil.copyfile(source / name, target / name)
         shutil.copytree(source / "html", target / "html", dirs_exist_ok=True)
+        (target / "tools").mkdir(exist_ok=True)
+        for name in ("html_equations.py", "html_line_anchors.py"):
+            shutil.copyfile(source / "tools" / name, target / "tools" / name)
         # Font installation is separate. Never copy or remove destination fonts.
         # Remove only known legacy HTML assets after the new layout is copied.
         for name in ("html.typ", "theme.css", "fonts.css"):

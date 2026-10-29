@@ -114,6 +114,18 @@ Typst diagnostics use `short` format by default. Pass `--diagnostic-format
 human` after `--` to select the detailed format. The preview address is printed
 as `Preview: http://127.0.0.1:PORT/`.
 
+The preview server also accepts JSON commands at `POST /_control` on the same
+port. For example, with a preview running on port 3000:
+
+```sh
+curl -X POST http://127.0.0.1:3000/_control -H 'Content-Type: application/json' -d '{"action":"navigate","line":12}'
+curl -X POST http://127.0.0.1:3000/_control -H 'Content-Type: application/json' -d '{"action":"quit"}'
+```
+
+Navigation updates open preview pages on their next poll (normally within
+800 ms). `quit` stops the watcher and cleans up its resources. The endpoint is
+available only while watching; use the actual port printed by the wrapper.
+
 For watch previews only, simple literal `image("path")` calls in the main
 file are rewritten to local HTTP URLs for existing PNG, JPEG, WebP and SVG
 files inside the current working directory. One percentage `width` or `height`
@@ -124,8 +136,10 @@ In `compile` mode images remain embedded by Typst.
 `--no-line-anchors` bypasses source instrumentation. Keep the installed Typst
 package in sync with the checkout using `python install.py`.
 
-The helper writes one temporary Typst entry beside the source and removes it
-when the process ends, so that the source directory must be writable. Markers
+The helper keeps one temporary Typst entry beside the source to preserve relative
+imports, so the source directory must be writable. On Windows, the entry uses
+delete-on-close: the OS removes it even when Python is forcibly killed. Normal
+exit also removes it on other platforms. No dependency manifest is written. Markers
 such as `<span id="L3" data-line="3">`
 refer to one-based lines in the original file. Markers appear at the start of
 their heading or paragraph. The embedded navigation script resolves `#L3` to
