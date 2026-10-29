@@ -12,7 +12,9 @@
             marker.type = 'button';
             marker.id = `${aside.id}-ref`;
             marker.className = 'sidenote-marker';
-            marker.textContent = '†';
+            const symbol = document.createElement('sup');
+            symbol.textContent = '※';
+            marker.append(symbol);
             marker.setAttribute('aria-label', 'Toggle sidenote');
             marker.setAttribute('aria-controls', aside.id);
             marker.setAttribute('aria-expanded', 'false');

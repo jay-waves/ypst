@@ -52,6 +52,28 @@ body:has(link[data-theme="dark"]),
   --md-alert-tip: #57ab5a;
   color-scheme: dark;
 }
+
+/* HTML exports follow the operating system, including live theme changes. */
+@media (prefers-color-scheme: dark) {
+  :root:has([data-theme="auto"]),
+  body:has([data-theme="auto"]) {
+    --md-fg: #f0f6fc;
+    --md-bg: #212830;
+    --md-muted: #9198a1;
+    --md-border: #3d444d;
+    --md-border-muted: #3d444db3;
+    --md-accent: #478be6;
+    --md-mark-bg: #ae7c1426;
+    --md-code-bg: #656c7633;
+    --md-code-fg: #c9d1d9;
+    --md-pre-bg: #262c36;
+    --md-danger: #e5534b;
+    --md-alert-important: #986ee2;
+    --md-alert-warning: #c69026;
+    --md-alert-tip: #57ab5a;
+    color-scheme: dark;
+  }
+}
 body {
   margin: 32px auto;
   width: min(95%, 920px);
@@ -246,6 +268,21 @@ body ol ol ol { list-style-type: lower-alpha; }
 
 body dd { margin-left: 0; }
 
+/* Bibliography prefixes are content, not browser list markers. */
+body [role="doc-bibliography"] > ul {
+  padding-inline: 0;
+  margin-inline: 0;
+  list-style: none;
+}
+body [role="doc-bibliography"] > ul > li:has(> .prefix) {
+  padding-inline-start: var(--md-block-indent);
+}
+body [role="doc-bibliography"] > ul > li > .prefix {
+  float: inline-start;
+  width: calc(var(--md-block-indent) - .25em);
+  margin-inline-start: calc(-1 * var(--md-block-indent));
+}
+
 body>*:first-child { margin-top: 0 !important; }
 
 body>*:last-child { margin-bottom: 0 !important; }
@@ -426,7 +463,42 @@ body mjx-container { font-size: 1em; }
 /* Native MathML uses the same bundled math family as PDF equations. */
 body math { font-family: "New Computer Modern Math", math; }
 
-body .display-equation { margin: 1rem 0; overflow-x: auto; }
+body .display-equation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 1em;
+  margin: 1rem 0;
+  /* Horizontal scrolling also clips vertical ink outside the SVG viewport. */
+  padding-block: .5em;
+  overflow-x: auto;
+}
+body .display-equation > svg { grid-column: 2; }
+body .equation-number {
+  grid-column: 3;
+  justify-self: end;
+  color: var(--md-muted);
+  white-space: nowrap;
+}
+body .theorem-environment {
+  display: block;
+  min-width: 0;
+  margin: 1rem 0;
+  text-align: start;
+}
+body .theorem-box {
+  padding: .5em 1em;
+  border: 1px solid var(--md-border);
+  border-radius: 3px;
+  background: var(--md-pre-bg);
+}
+body .proof-qed { float: right; margin-inline-start: 1em; }
+body .theorem-environment::after { content: ""; display: block; clear: both; }
+@media (max-width: 600px) {
+  body .display-equation { grid-template-columns: minmax(0, 1fr); row-gap: .35em; }
+  body .display-equation > svg { grid-column: 1; }
+  body .equation-number { grid-column: 1; }
+}
 body .display-equation > svg { margin-inline: auto; }
 body .display-equation > svg[data-inherit-fill] { fill: var(--md-fg); }
 

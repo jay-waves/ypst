@@ -6,7 +6,7 @@
 <link rel="stylesheet" href="theme.css">
 ```
 
-Set `data-theme="dark"` on `<html>` or `<body>` for dark mode. Typst exports select the theme automatically.
+Set `data-theme="dark"` on `<html>` or `<body>` for dark mode. Typst exports use `data-theme="auto"` and follow `prefers-color-scheme`, independently of the PDF theme.
 
 Fonts must be installed locally; unavailable fonts fall back to system fonts. The stylesheet does not load font files. Highlighting and math-rendering resources remain the host's responsibility.
 

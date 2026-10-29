@@ -21,12 +21,7 @@
 /// HTML export: `python typst.py compile path/to/note.typ note.html` from the checkout.
 /// The recommended interfaces are listed above; other top-level names remain importable.
 
-#import "@preview/ctheorems:1.1.3": (
-    thmbox as _thm_box,
-    thmplain as _thm_plain,
-    thmproof as _thm_proof,
-    thmrules as _thm_rules,
-)
+#import "@preview/headcount:0.1.1": dependent-numbering, reset-counter
 #import "@preview/fletcher:0.5.8" as fletcher
 #import "html/html.typ" as _html
 
@@ -231,87 +226,79 @@
     }
 }
 
-/// Theorem environment: `#theorem[Theorem content]`.
-#let theorem(..args, body) = context {
-    let palette = _palette(_theme.get())
-    _thm_box(
-        "theorem", "定理", supplement: [Thm.], titlefmt: strong,
-        fill: palette.pre-bg, stroke: 0.4pt + palette.border, radius: 3pt,
-    )(..args, body)
+// Native figure counters provide labels/references; headcount adds the chapter.
+#let _statement_kinds = ("theorem", "lemma", "corollary", "definition", "proof")
+#let _statement_numbering = dependent-numbering("1.1")
+#let _figure_numbering = dependent-numbering("1.1a")
+#let _equation_numbering = dependent-numbering("(1.1)")
+
+// A small renderer shared by all statement environments. Each kind has its
+// own native counter. Optional positional names retain theorem([Name])[...].
+#let _statement(kind, title, supplement, boxed, ..args, body,
+    numbering: _statement_numbering, name: none) = {
+    let names = args.pos()
+    assert(names.len() <= 1, message: "Expected at most one statement name.")
+    let name = if names.len() > 0 { names.first() } else { name }
+    let rendered = context {
+        let palette = _palette(_theme.get())
+        let content = [
+            #strong[
+                #title#if numbering != none [~#context counter(figure.where(kind: kind)).display(numbering)]
+                #if name != none [ (#name)]
+            ]: #body#if kind == "proof" [ #if target() == "html" { html.span(class: "proof-qed", [□]) } else { h(1fr); $square$ }]
+        ]
+        if target() == "html" {
+            html.div(class: "theorem-environment" + if boxed { " theorem-box" } else { "" }, content)
+        } else {
+            block.with(
+                width: 100%, breakable: true,
+                inset: if boxed { (x: 1em, y: .5em) } else { 0pt },
+                fill: if boxed { palette.pre-bg } else { none },
+                stroke: if boxed { .4pt + palette.border } else { none },
+                radius: if boxed { 3pt } else { 0pt },
+            )(..args.named(), content)
+        }
+    }
+    figure(rendered, kind: kind, supplement: supplement,
+        numbering: numbering, outlined: false)
 }
 
-/// Lemma environment: `#lemma[Lemma content]`.
-#let lemma(..args, body) = context {
-    let palette = _palette(_theme.get())
-    _thm_box(
-        "lemma", "引理", supplement: [Lemma], titlefmt: strong,
-        fill: palette.pre-bg, stroke: 0.4pt + palette.border, radius: 3pt,
-    )(..args, body)
-}
+/// Statements have independent chapter-based counters and native references.
+#let theorem = _statement.with("theorem", "Theorem", [Thm.], true)
+#let lemma = _statement.with("lemma", "Lemma", [Lemma], true)
+#let corollary = _statement.with("corollary", "Corollary", [Cor.], false)
+#let definition = _statement.with("definition", "Definition", [Def.], true)
+/// Unnumbered proof with an automatic end symbol.
+#let proof = _statement.with("proof", "Proof", [Proof], false, numbering: none)
 
-/// Corollary environment: `#corollary[Corollary content]`.
-#let corollary(..args, body) = {
-    _thm_plain("corollary", "推论", supplement: [Cor.], titlefmt: strong)(..args, body)
+// Only numbered headings reset chapter-dependent counters. Apply this after
+// each target's heading design so it does not get discarded by that design.
+#let _reset_numbered(keys, body) = {
+    if keys.len() == 0 { body } else {
+        show heading: it => {
+            if it.numbering == none { it } else { reset-counter(counter(keys.first()))(it) }
+        }
+        _reset_numbered(keys.slice(1), body)
+    }
 }
-
-/// Definition environment: `#definition[Definition content]`.
-#let definition(..args, body) = context {
-    let palette = _palette(_theme.get())
-    _thm_box(
-        "definition", "定义", supplement: [Def.],
-        fill: palette.pre-bg, stroke: 0.4pt + palette.border, radius: 3pt,
-    )(..args, body)
-}
-
-#let _proof_env = _thm_proof(
-    "proof", "证明", 
-    titlefmt: strong, 
-    inset: (top: 0em, left: 0pt, bottom: 0em, right: 0pt)
+#let _chapter_counters(body) = _reset_numbered(
+    (math.equation, figure.where(kind: image), figure.where(kind: table))
+        + _statement_kinds.map(kind => figure.where(kind: kind)), body,
 )
 
-/// Proof environment: `#proof[Proof content]`; automatically adds a QED symbol.
-#let proof(..args, body) = {
-    _proof_env(..args, body)
-    linebreak()
-}
-
-// Chapter-prefixed formats for paged figures and equations.
-#let _figure_numbering(number, ..sub) = context {
-    numbering("1.1a", counter(heading).get().first(), number, ..sub)
-}
-
-#let _equation_numbering(number) = context {
-    let palette = _palette(_theme.get())
-    let value = numbering("1.1", counter(heading).get().first(), number)
-    text(
-        font: _math_fonts,
-        size: _font_size.body,
-        fill: palette.muted,
-        number-type: "lining",
-        number-width: "tabular",
-        "(" + value + ")",
-    )
-}
-
-// Resolve chapter-prefixed references at the target location. Use plain text
-// so equation-only parentheses and styling do not enter the reference.
-#let _numbered_ref(it) = context {
-    let target = it.element
-    if it.form != "normal" or target == none or not target.has("numbering") {
+// Native refs retain parentheses returned by a numbering function. Equations
+// display them, but references use the plain number at the target location.
+#let _equation_ref(it) = context {
+    let equation = it.element
+    if it.form != "normal" or equation == none or equation.func() != math.equation or equation.numbering != _equation_numbering {
         return it
     }
-    let is-equation = target.numbering == _equation_numbering
-    let is-figure = target.numbering == _figure_numbering
-    if not is-equation and not is-figure { return it }
-    let chapter = counter(heading).at(target.location()).first()
-    let numbers = if is-equation {
-        counter(math.equation).at(target.location())
-    } else {
-        counter(figure.where(kind: target.kind)).at(target.location())
-    }
-    let supplement = if it.supplement == auto { target.supplement } else { it.supplement }
-    if type(supplement) == function { supplement = supplement(target) }
-    link(target.location(), [#if supplement not in (none, []) [#supplement~]#numbering(if is-equation { "1.1" } else { "1.1a" }, chapter, ..numbers)])
+    let loc = equation.location()
+    let supplement = if it.supplement == auto { equation.supplement } else { it.supplement }
+    if type(supplement) == function { supplement = supplement(equation) }
+    link(loc, [#if supplement not in (none, []) [#supplement~]#numbering(
+        "1.1", counter(heading).at(loc).first(), ..counter(math.equation).at(loc),
+    )])
 }
 
 // Paged output is the core renderer. HTML-specific compatibility rules live in
@@ -322,10 +309,6 @@
     let page-columns = if landscape { 2 } else { 1 }
 
     set heading(supplement: [Sec.])
-    set math.equation(numbering: _equation_numbering, supplement: [Eq.])
-    show figure.where(kind: image): set figure(supplement: [Fig.], numbering: _figure_numbering)
-    show figure.where(kind: table): set figure(supplement: [Tab.], numbering: _figure_numbering)
-    show ref: _numbered_ref
     show math.equation: set text(font: _math_fonts)
 
     set page(
@@ -363,10 +346,6 @@
         spacing: block-spacing,
     )
     show heading: it => context {
-        // Only equations restart per chapter; front-matter does not reset them.
-        if it.level == 1 and it.numbering != none {
-            counter(math.equation).update(0)
-        }
         let level = calc.min(it.level, 3)
         let size = if it.level >= 4 {
             _font_size.body
@@ -423,7 +402,9 @@
     }
     show figure.caption: set text(size: _font_size.tiny)
 
-    show: _thm_rules.with(qed-symbol: $square$)
+    show figure: it => {
+        if it.kind in _statement_kinds { align(start, it.body) } else { it }
+    }
 
     // code block
     show raw.where(block: true): it => {
@@ -540,7 +521,7 @@
         ]
     }
 
-    body
+    _chapter_counters(body)
 }
 
 /// Introductory content with unnumbered headings; styles and outline entries
@@ -571,10 +552,15 @@
         }
     })
     set footnote(numbering: "[a]")
+    set math.equation(numbering: _equation_numbering, supplement: [Eq.])
+    show figure.where(kind: image): set figure(supplement: [Fig.], numbering: _figure_numbering)
+    show figure.where(kind: table): set figure(supplement: [Tab.], numbering: _figure_numbering)
+
+    show ref: _equation_ref
 
     _theme.update(theme)
     if target() == "html" {
-        _html.template(theme: theme, body)
+        _html.template(theme: theme, _chapter_counters(body))
     } else {
         _paged_template(theme, layout, body)
     }

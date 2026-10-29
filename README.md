@@ -25,7 +25,7 @@ These are the [standard local package directories](https://github.com/typst/pack
 If your compiler or editor overrides `--package-path` / `TYPST_PACKAGE_PATH`,
 point it at the corresponding `typst/packages` directory above. Fonts are installed separately.
 
-The package version stays at `0.1.0`. First compilation downloads `ctheorems:1.1.3`, `fletcher:0.5.8`, and their dependencies.
+The package version stays at `0.1.0`. First compilation downloads `headcount:0.1.1`, `fletcher:0.5.8`, and their dependencies.
 
 ```typst
 #import "@local/ypst-template:0.1.0": template, front-matter, sidenote
@@ -54,14 +54,14 @@ Defaults are `theme: "light"` and `layout: "portrait"`:
 #show: template.with(theme: "dark", layout: "landscape")
 ```
 
-`--input theme=dark` also sets the theme when no explicit theme is supplied. Layout affects PDF only.
+`--input theme=dark` also sets the PDF theme when no explicit theme is supplied. HTML automatically follows the system light/dark preference, including changes while the page is open. Theme and layout parameters affect PDF only.
 
 ## Features
 
 - `front-matter`: unnumbered headings without a forced page break.
 - `sidenote`: text or image notes; use `side-image: path("image.png")` for caller-relative images.
-- `definition`, `theorem`, `lemma`, `corollary`, `proof`: environments with Chinese labels.
-- Native equation, figure, and table references. PDF equations use chapter prefixes; HTML equations use continuous numbering.
+- `definition`, `theorem`, `lemma`, `corollary`, `proof`: environments with English titles. Each statement type has its own counter; proofs are unnumbered and end with a square. Use `#theorem([Name])[Body] <label>` for a named statement or `numbering: none` to omit its number without advancing the counter. PDF block styling options can be passed to the statement; HTML uses dedicated CSS classes. These are template helpers, not the full ctheorems API (`qedhere` and custom counter inheritance are not provided).
+- Native equation, figure, and table references. Equations, figures, tables, and statement environments use chapter-prefixed numbering in PDF and HTML; counters restart at numbered top-level headings.
 - `diagram`, `node`, `edge`: Fletcher helpers with theme colors; `fletcher` exposes the full module.
 
 PDF uses native footnotes. HTML embeds the theme and interactive scripts by default. Click a footnote marker to expand or close it; opening another footnote closes the previous one. Headings are collapsible; inline equations use MathML and display equations use Typst-rendered SVG. SVG equations are not selectable as math. PDF and HTML layouts may differ.
@@ -163,7 +163,7 @@ filename. Use `--no-line-anchors` when those limitations matter.
 | [Physica](https://typst.app/universe/package/physica/) | Derivatives, vector calculus, and other scientific notation. Import as a module to avoid name collisions; see `examples/scientific.typ`. |
 | [CeTZ](https://typst.app/universe/package/cetz/) | Custom vector drawings. For HTML, render the canvas through `html.frame`; see `examples/scientific.typ`. |
 | [Fletcher](https://typst.app/universe/package/fletcher/) | Arrow and node diagrams. Already exposed as `diagram`, `node`, `edge`, and `fletcher`; use `html.frame` for HTML, as shown in `examples/components.typ`. |
-| [ctheorems](https://typst.app/universe/package/ctheorems/) | Theorem numbering and environments. Already integrated through `definition`, `theorem`, `lemma`, `corollary`, and `proof`. |
+| [headcount](https://typst.app/universe/package/headcount/) | Chapter-dependent native counters. Integrated into equations, figures, tables, and the template’s small theorem environment layer. |
 
 The examples exercise selected package features in PDF and HTML; this is not a guarantee for every package API. Additional packages are downloaded when their examples are first compiled.
 

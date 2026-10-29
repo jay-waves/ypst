@@ -71,14 +71,15 @@
     };
 
     root.addEventListener('click', event => {
+        const link = event.target.closest('a[href]');
+        const interactive = event.target.closest('a[href], button, input, select, textarea, summary, [role="button"]:not(.heading-summary)');
         const heading = event.target.closest('.heading-summary > :is(h1,h2,h3,h4,h5,h6)');
         const summary = heading?.parentElement;
-        if (summary && summary.getAttribute('aria-disabled') !== 'true') {
+        if (summary && !interactive && summary.getAttribute('aria-disabled') !== 'true') {
             toggle(summary);
             return;
         }
 
-        const link = event.target.closest('a[href]');
         if (!link) return;
         const fragment = sameDocumentFragment(link);
         if (fragment === null) return;
@@ -94,7 +95,7 @@
     root.addEventListener('keydown', event => {
         if (event.key !== 'Enter' && event.key !== ' ') return;
         const summary = event.target.closest('.heading-summary');
-        if (!summary || summary.getAttribute('aria-disabled') === 'true') return;
+        if (!summary || event.target !== summary || summary.getAttribute('aria-disabled') === 'true') return;
         event.preventDefault();
         toggle(summary);
     });

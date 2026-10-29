@@ -8,7 +8,7 @@
         block(html.div(class: "sidenote", [
             #html.div(class: "sidenote-body", body)
             #html.elem("details", attrs: ("class": "sidenote-toggle"), [
-                #html.elem("summary", "†")
+                #html.elem("summary", html.elem("sup", "※"))
                 #html.elem("aside", attrs: (role: "note", class: "sidenote-panel"), [
                     #html.div(class: "note-content", aside)
                 ])
@@ -19,12 +19,25 @@
 
 /// Apply HTML-safe layout rules and emit browser resources.
 #let template(theme: "light", body) = {
+    // HTML follows the browser; the public theme parameter controls PDF only.
+    let theme = "auto"
     // Heading and footnote formats are supplied by the public template.
-    // HTML equations use native sequential numbering.
-    set math.equation(numbering: "(1)")
-    show math.equation.where(block: true): it => {
-        set text(fill: if theme == "dark" { rgb("#f0f6fc") } else { rgb("#363733") })
-        html.div(class: "display-equation", html.frame(it))
+    // Keep the native counter and reference target; only move the visible number.
+    show math.equation.where(block: true): it => context {
+        set text(fill: rgb("#363733"))
+        // Frame only the math body, never the original numbered element.
+        let formula = html.frame(math.equation(math.display(it.body), block: false, numbering: none))
+        html.div(class: "display-equation", [
+            #formula
+            #if it.numbering != none {
+                html.div(class: "equation-number", numbering(it.numbering, ..counter(math.equation).at(it.location())))
+            }
+        ])
+    }
+    show figure: it => {
+        if type(it.kind) == str and it.kind in ("theorem", "lemma", "corollary", "definition", "proof") {
+            it.body
+        } else { it }
     }
     show heading: it => {
         show math.equation: math.bold
@@ -33,6 +46,10 @@
 
     // Typst's HTML exporter does not translate PDF layout rules. Keep the
     // semantic elements and let the browser styles arrange them.
+    // Preserve text gaps in HTML; framed SVGs still need native spacing.
+    show h: it => context {
+        if target() == "html" { "\u{2002}" } else { it }
+    }
     show align: it => {
         let horizontal = it.alignment.x
         let css-align = if horizontal == center {
