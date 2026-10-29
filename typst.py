@@ -246,7 +246,6 @@ def main():
     parser.add_argument("source", type=Path)
     parser.add_argument("output", nargs="?", type=Path)
     parser.add_argument("--no-line-anchors", action="store_true")
-    parser.add_argument("--stop-on-stdin", action="store_true", help="stop watch cleanly when stdin closes")
     parser.add_argument("--interval", type=float, default=0.5, help="source polling interval in seconds")
     parser.add_argument("--port", type=int, help="local preview server port in watch mode (default: 3000; 0 picks a free port)")
     parser.add_argument("--site-root", type=Path, help="enable site mode and write shared assets under this directory")
@@ -344,13 +343,6 @@ def main():
             return result
 
         command = ["typst", "watch", *compiler_options, "--no-serve", entry.name, str(requested)]
-        if options.stop_on_stdin:
-            def monitor_stdin():
-                try:
-                    sys.stdin.buffer.read()
-                finally:
-                    stop.set()
-            threading.Thread(target=monitor_stdin, daemon=True).start()
         process = subprocess.Popen(command, stdin=subprocess.DEVNULL)
         last_compiled = None
         last_error = None
