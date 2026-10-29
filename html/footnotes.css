@@ -3,9 +3,8 @@ body .sidenote-toggle:not([open]) { display: inline-block; }
 body .sidenote-toggle[open] { display: block; }
 body .sidenote-toggle > summary {
   display: inline-block;
-  vertical-align: super;
-  font-size: .75em;
-  line-height: 0;
+  font-size: 1em;
+  line-height: inherit;
   cursor: pointer;
   list-style: none;
 }
@@ -21,7 +20,7 @@ body .sidenote-marker {
   font: inherit;
   cursor: pointer;
 }
-/* Enlarge hit targets without changing line wrapping or superscript metrics. */
+/* Enlarge hit targets without changing line wrapping. */
 body .sidenote-marker,
 body [role="doc-noteref"] > a { position: relative; color: var(--md-muted); }
 body .sidenote-marker::after,

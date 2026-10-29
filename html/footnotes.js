@@ -16,8 +16,6 @@
             marker.setAttribute('aria-label', 'Toggle sidenote');
             marker.setAttribute('aria-controls', aside.id);
             marker.setAttribute('aria-expanded', 'false');
-            const sup = document.createElement('sup');
-            sup.append(marker);
             const body = wrapper.querySelector(':scope > .sidenote-body');
             // Descend through trailing block wrappers rather than placing the
             // reference after them, which would start a separate line.
@@ -36,7 +34,7 @@
                 tail.lastChild.textContent = tail.lastChild.textContent.trimEnd();
             }
             // Keep the reference attached to the preceding text at line breaks.
-            tail.append(document.createTextNode('\u2060'), sup);
+            tail.append(document.createTextNode('\u2060'), marker);
             details.replaceWith(aside);
             marker.addEventListener('click', () => {
                 aside.hidden = !aside.hidden;
