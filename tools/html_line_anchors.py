@@ -2,16 +2,22 @@
 """Compile Typst HTML with source-line anchors using Tree-sitter."""
 import re
 import json
+from functools import lru_cache
 from pathlib import Path
 from urllib.parse import quote
+
+
+@lru_cache(maxsize=1)
+def typst_parser():
+    from tree_sitter_language_pack import get_parser
+    return get_parser("typst")
 
 
 def check_document_settings(source):
     """Explain the template's top-level document metadata requirement."""
     try:
-        from tree_sitter_language_pack import get_parser
         data = source.encode("utf-8")
-        tree = get_parser("typst").parse(data)
+        tree = typst_parser().parse(data)
     except Exception as error:
         raise ValueError(f"could not load the Typst grammar: {error}") from error
     if tree.root_node.has_error:
@@ -25,17 +31,18 @@ def check_document_settings(source):
         if child.type == "show" and re.match(rb"show\s*:\s*template\b", text):
             template_seen = True
         elif template_seen and child.type == "set" and re.match(rb"set\s+document\s*\(", text):
-            raise ValueError(f"line {node.start_point.row + 1}: #set document must appear before #show: template; move the document setting above the template show rule")
+            line = data.count(b"\n", 0, node.start_byte) + 1
+            raise ValueError(f"line {line}: #set document must appear before #show: template; move the document setting above the template show rule")
 
 
 def inject(source):
     try:
-        from tree_sitter_language_pack import get_parser
+        parser = typst_parser()
     except ImportError as error:
         raise ValueError("install dependencies: python -m pip install -r requirements.txt") from error
     data = source.encode("utf-8")
     try:
-        tree = get_parser("typst").parse(data)
+        tree = parser.parse(data)
     except Exception as error:
         raise ValueError(f"could not load the Typst grammar: {error}") from error
     if tree.root_node.has_error:
@@ -44,7 +51,7 @@ def inject(source):
     labels = set(re.findall(r"<L([1-9]\d*)>", source))
 
     def mark(node, heading=False):
-        line = node.start_point.row + 1
+        line = data.count(b"\n", 0, node.start_byte) + 1
         if str(line) in labels:
             raise ValueError(f"line anchor L{line} conflicts with a source label")
         if line in anchors:
@@ -93,11 +100,11 @@ def inject(source):
 def rewrite_main_images(source, source_dir, root, origin):
     """Rewrite simple literal main-file image calls for the preview server."""
     try:
-        from tree_sitter_language_pack import get_parser
+        parser = typst_parser()
     except ImportError as error:
         raise ValueError("install dependencies: python -m pip install -r requirements.txt") from error
     data = source.encode("utf-8")
-    tree = get_parser("typst").parse(data)
+    tree = parser.parse(data)
     if tree.root_node.has_error:
         raise ValueError("Typst syntax tree contains errors; refusing image rewrite")
     edits = []
