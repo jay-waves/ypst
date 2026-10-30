@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -23,6 +24,32 @@ def diagnostic_defaults(arguments):
     if any(arg == "--diagnostic-format" or arg.startswith("--diagnostic-format=") for arg in arguments):
         return []
     return ["--diagnostic-format", "short"]
+
+
+def uses_short_diagnostics(arguments):
+    """Match Typst's last diagnostic format option, including the default."""
+    selected = "short"
+    for index, argument in enumerate(arguments):
+        if argument == "--diagnostic-format" and index + 1 < len(arguments):
+            selected = arguments[index + 1]
+        elif argument.startswith("--diagnostic-format="):
+            selected = argument.split("=", 1)[1]
+    return selected == "short"
+
+
+def remap_short_diagnostic(line, entry, source, source_lines, site):
+    match = re.match(r"^(.*):(\d+):(\d+): (error|warning|help):", line)
+    if not match:
+        return line
+    filename = match.group(1).removeprefix("\\\\?\\")
+    try:
+        same_file = Path(filename).resolve() == Path(entry).resolve()
+    except (OSError, ValueError):
+        return line
+    row = int(match.group(2)) - int(site)
+    if not same_file or not 1 <= row <= source_lines:
+        return line
+    return f"{source}:{row}:{match.group(3)}: {match.group(4)}:" + line[match.end():]
 
 
 def make_compiler_source(source, site=False):
@@ -150,7 +177,18 @@ def main():
         if not any(x == "--root" or x.startswith("--root=") for x in extra):
             compiler_options.extend(["--root", "."])
         compiler_options.extend(extra)
-        result = subprocess.call(["typst", "compile", *compiler_options, entry.name, str(requested)])
+        command = ["typst", "compile", *compiler_options, entry.name, str(requested)]
+        if uses_short_diagnostics(extra):
+            source_lines = len(source.read_text(encoding="utf-8").splitlines())
+            process = subprocess.Popen(command, stderr=subprocess.PIPE, text=True,
+                                       encoding="utf-8", errors="replace")
+            with process.stderr:
+                for line in process.stderr:
+                    sys.stderr.write(remap_short_diagnostic(
+                        line, entry.name, options.source, source_lines, site_root is not None))
+            result = process.wait()
+        else:
+            result = subprocess.call(command)
         if result == 0:
             optimize_file(bundle_html)
         return result

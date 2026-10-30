@@ -100,7 +100,9 @@ python typst.py compile note.typ output.html     # choose an output file
 
 The output embeds the theme, scripts, and images. Place `#set document(...)`
 before `#show: template`. Pass Typst options after `--`, for example
-`-- --root . --diagnostic-format human`.
+`-- --root . --diagnostic-format human`. Short diagnostics (the default)
+map temporary entry paths and line numbers back to the source; human-format
+diagnostics retain Typst's original temporary entry locations.
 
 For a site with shared CSS and scripts, use:
 

@@ -45,6 +45,29 @@ class WrapperTests(unittest.TestCase):
                 self.assertIn('line 3: #set document must appear before #show: template', result.stderr.decode())
                 self.assertFalse(list(root.glob('.typst-bundle-*.typ')))
 
+    def test_short_diagnostics_map_source_and_preserve_imports(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            root = Path(directory)
+            source, imported = root / "note.typ", root / "part.typ"
+            source.write_text('Text.\n\n#unknown_function()\n', encoding="utf-8", newline="\n")
+            imported.write_text('#unknown_imported()\n', encoding="utf-8", newline="\n")
+            for site in (False, True):
+                for diagnostic in ([], ["--diagnostic-format=short"]):
+                    output = root / ("page" if site else "out.html")
+                    command = [sys.executable, str(ROOT / "typst.py"), "compile", str(source), str(output)]
+                    if site:
+                        command.extend(["--site-root", str(root / "site")])
+                    result = subprocess.run(command + ["--", *diagnostic, "--root", str(ROOT)],
+                                            cwd=ROOT, capture_output=True, text=True, encoding="utf-8")
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(f"{source}:3:1: error: unknown variable", result.stderr)
+                    self.assertNotIn(".typst-bundle-", result.stderr)
+                source.write_text('#include "part.typ"\n', encoding="utf-8", newline="\n")
+                result = subprocess.run(command + ["--", "--root", str(ROOT)], cwd=ROOT,
+                                        capture_output=True, text=True, encoding="utf-8")
+                self.assertIn("part.typ:1:1: error: unknown variable", result.stderr)
+                source.write_text('Text.\n\n#unknown_function()\n', encoding="utf-8", newline="\n")
+
     def test_compiler_error_removes_temporary_source(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as directory:
             root = Path(directory)
