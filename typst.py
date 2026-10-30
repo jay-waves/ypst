@@ -44,7 +44,6 @@ PREVIEW_IMAGE_HELPER = '''#let __ypst_preview_image(url, ..args) = {
 }
 '''
 
-
 def write_compiler_source(entry, source, with_anchors, site=False, preview=None):
     check_document_settings(source)
     try:

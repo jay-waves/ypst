@@ -151,4 +151,3 @@ def rewrite_main_images(source, source_dir, root, origin):
         data = data[:start] + replacement + data[end:]
     return data.decode("utf-8")
 
-

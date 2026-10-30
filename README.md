@@ -100,6 +100,9 @@ site mode selects a bundle directory. Compile output references shared assets by
 relative URL; deploy the site directory together. Use `--assets-url /static/`
 with `--site-root` to specify a public URL prefix for the shared directory. The
 public URL must be mapped to the generated content-hash directory by your site.
+Links are emitted as written; use URLs relative to the output page, such as
+`../b/` to link from `a/index.html` to `b/index.html`. Source `.typ` links
+are not converted to site URLs.
 
 In watch mode, `typst.py` creates a temporary bundle in the system temporary
 directory and serves it on `127.0.0.1:3000`; if that port is already in use, it

@@ -18,6 +18,22 @@ spec.loader.exec_module(wrapper)
 
 
 class WrapperTests(unittest.TestCase):
+    def test_site_preserves_link_destinations(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            root = Path(directory)
+            source = root / "a.typ"
+            source.write_text('#link("b.typ?x=1&y=2#part")[Next] #link("file.pdf")[File] '
+                              '#link("https://example.com/a.typ")[External] '
+                              '#link("#part")[Anchor]\n', encoding="utf-8", newline="\n")
+            result = subprocess.run([sys.executable, str(ROOT / "typst.py"), "compile", str(source),
+                                     "--site-root", str(root / "site")], cwd=ROOT, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
+            html = (root / "site" / root.name / "a" / "index.html").read_text(encoding="utf-8")
+            self.assertIn('b.typ?x=1&amp;y=2#part', html)
+            self.assertIn('file.pdf', html)
+            self.assertIn('https://example.com/a.typ', html)
+            self.assertIn('href="#part"', html)
+
     def test_preview_control_navigation_and_quit(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
