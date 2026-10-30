@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Compile or watch standalone Typst HTML and shared-resource sites."""
 import argparse
+import difflib
+import re
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import hashlib
@@ -241,6 +243,90 @@ def serve(root, bundle_html, port, allow_fallback=False, source_root=None, stop=
     return server
 
 
+def watch_diagnostics(stream, source, entry, source_text, lock, on_compile=emit_json):
+    """Collect short-format diagnostics following each Typst watch status."""
+    pending = None
+    timer = None
+    guard = threading.RLock()
+    startup_errors = []
+
+    def flush():
+        nonlocal pending, timer
+        with guard:
+            if pending is not None:
+                on_compile(pending)
+                pending = None
+            timer = None
+
+    def schedule():
+        nonlocal timer
+        if timer is not None:
+            timer.cancel()
+        timer = threading.Timer(0.2, flush)
+        timer.daemon = True
+        timer.start()
+
+    pattern = re.compile(r"^(.*):(\d+):(\d+): (error|warning|help): (.*)$")
+    for raw in stream:
+        line = raw.rstrip("\r\n")
+        with guard:
+            status = re.search(r"\] compiled (successfully|with errors|with warnings)", line)
+            if status:
+                if timer is not None:
+                    timer.cancel()
+                flush()
+                pending = {"type": "compile", "status": "error" if status.group(1) == "with errors" else "success", "input": str(source), "diagnostics": []}
+                schedule()
+                continue
+            match = pattern.match(line)
+            if match and pending is not None:
+                filename, row, column, severity, message = match.groups()
+                filename = filename.removeprefix("\\\\?\\")
+                path = Path(filename)
+                if not path.is_absolute():
+                    path = Path.cwd() / path
+                path = path.resolve()
+                row, column = int(row), int(column)
+                if path == Path(entry.name).resolve():
+                    with lock:
+                        original, generated = source_text[:]
+                    generated_lines, original_lines = generated.splitlines(), original.splitlines()
+                    offset = 1 + (PREVIEW_IMAGE_HELPER.count("\n") if generated.startswith('#document("index.html")[\n' + PREVIEW_IMAGE_HELPER) else 0)
+                    source_row = row - offset
+                    if 1 <= source_row <= len(original_lines) and row <= len(generated_lines):
+                        before, after = generated_lines[row - 1], original_lines[source_row - 1]
+                        position = max(0, column - 1)
+                        for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, before, after, autojunk=False).get_opcodes():
+                            if i1 <= position < i2 or (position == len(before) and i2 == position):
+                                position = j1 + min(position - i1, j2 - j1) if tag == "equal" else j1
+                                break
+                        row, column = source_row, position + 1
+                    else:
+                        row = column = None
+                    path = source
+                diagnostic = {"file": str(path), "severity": severity, "message": message}
+                if row is not None:
+                    diagnostic.update(line=row, column=column)
+                pending["diagnostics"].append(diagnostic)
+                schedule()
+            elif line and pending is not None and not line.startswith(("watching ", "writing to ", "[")):
+                pending["diagnostics"].append({"severity": "error" if pending["status"] == "error" else "warning", "message": line})
+                schedule()
+            elif line.startswith("error:"):
+                startup_errors.append(line.removeprefix("error:").strip())
+    with guard:
+        if timer is not None:
+            timer.cancel()
+        flush()
+        if startup_errors:
+            on_compile({"type": "compile", "status": "error", "input": str(source), "diagnostics": [{"severity": "error", "message": message} for message in startup_errors]})
+
+
+def compiler_source_text(entry):
+    entry.seek(0)
+    return entry.read()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, epilog="Pass Typst options after --.")
     parser.add_argument("command", choices=("compile", "watch"))
@@ -269,6 +355,8 @@ def main():
         parser.error("--port must be between 0 and 65535")
     if str(options.source) == "-" or str(options.output) == "-":
         parser.error("stdin and stdout are not supported")
+    if options.command == "watch" and any(x == "--diagnostic-format" or x.startswith("--diagnostic-format=") for x in extra):
+        parser.error("watch manages --diagnostic-format for structured output")
     if options.command == "watch" and (options.output is not None or options.site_root is not None or options.no_serve or options.assets_url is not None):
         parser.error("watch uses a temporary preview site; output, --site-root, --assets-url and --no-serve are compile-only")
     source = options.source.resolve()
@@ -328,8 +416,6 @@ def main():
             requested_port = 3000 if options.port is None else options.port
             server = serve(site_root, bundle_html, requested_port, allow_fallback=options.port is None, source_root=root, stop=stop, control=control, control_lock=control_lock)
             port = server.server_address[1]
-            emit_json({"type": "ready", "input": str(source)})
-            emit_json({"type": "preview", "url": f"http://127.0.0.1:{port}/"})
             threading.Thread(target=read_commands, args=(control, control_lock, stop), daemon=True).start()
         preview = (source.parent, root, f"http://127.0.0.1:{port}") if cache else None
         entry, last_text = make_compiler_source(source, not options.no_line_anchors, site_root is not None, preview)
@@ -348,34 +434,33 @@ def main():
             return result
 
         command = ["typst", "watch", *compiler_options, "--no-serve", entry.name, str(requested)]
-        process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=sys.stderr)
-        last_compiled = None
-        last_error = None
-        last_compile_status = None
+        source_lock = threading.Lock()
+        source_text = [last_text, compiler_source_text(entry)]
+        preview_sent = False
+
+        def report_compile(event):
+            nonlocal preview_sent
+            if event["status"] == "success":
+                try:
+                    optimize_file(bundle_html)
+                except (OSError, ValueError) as error:
+                    event["status"] = "error"
+                    event["diagnostics"].append({"severity": "error", "message": str(error)})
+            emit_json(event)
+            if event["status"] == "success" and not preview_sent:
+                emit_json({"type": "preview", "url": f"http://127.0.0.1:{port}/"})
+                preview_sent = True
+
+        process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", bufsize=1)
+        diagnostics_thread = threading.Thread(target=watch_diagnostics, args=(process.stderr, source, entry, source_text, source_lock, report_compile), daemon=True)
+        diagnostics_thread.start()
         while process.poll() is None and not stop.is_set():
             current = source.read_text(encoding="utf-8")
             if current != last_text:
-                write_compiler_source(entry, current, not options.no_line_anchors, site_root is not None, preview)
+                with source_lock:
+                    write_compiler_source(entry, current, not options.no_line_anchors, site_root is not None, preview)
+                    source_text[:] = [current, compiler_source_text(entry)]
                 last_text = current
-            try:
-                compiled = bundle_html.stat().st_mtime_ns
-                if compiled != last_compiled:
-                    optimize_file(bundle_html)
-                    last_compiled = bundle_html.stat().st_mtime_ns
-                    emit_json({"type": "compile", "status": "success", "input": str(source), "duration_ms": 0, "diagnostics": []})
-                last_error = None
-            except FileNotFoundError:
-                pass
-            except (OSError, ValueError) as error:
-                message = str(error)
-                if message != last_error:
-                    print(f"typst.py: {message}", file=sys.stderr, flush=True)
-                    last_error = message
-                    if last_compile_status != "error":
-                        emit_json({"type": "compile", "status": "error", "input": str(source), "duration_ms": 0, "diagnostics": [{"severity": "error", "message": message}]})
-                    last_compile_status = "error"
-                continue
-            last_compile_status = "success"
             stop.wait(options.interval)
         if stop.is_set():
             emit_json({"type": "stopped", "reason": "stdin_closed"})
@@ -390,6 +475,9 @@ def main():
         if process is not None and process.poll() is None:
             process.terminate()
             process.wait()
+        if process is not None and process.stderr is not None:
+            diagnostics_thread.join(timeout=2)
+            process.stderr.close()
         if server is not None:
             server.shutdown()
             server.server_close()

@@ -139,6 +139,67 @@ class WrapperTests(unittest.TestCase):
         self.assertEqual(wrapper.diagnostic_defaults(["--diagnostic-format", "human"]), [])
         self.assertEqual(wrapper.diagnostic_defaults(["--diagnostic-format=human"]), [])
 
+    def test_watch_diagnostics_maps_bundle_and_imports(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            root = Path(directory)
+            source = root / "note.typ"
+            entry = root / ".typst-bundle-test.typ"
+            original = "Hello #unknown()\n"
+            generated = '#document("index.html")[\n' + wrapper.PREVIEW_IMAGE_HELPER + '#html.elem("span")Hello #unknown()\n]\n'
+            row = 2 + wrapper.PREVIEW_IMAGE_HELPER.count("\n")
+            stream = io.StringIO(f'[12:00:00] compiled with errors\n{entry}:{row}:26: error: unknown variable\n{root / "part.typ"}:2:3: warning: example\n')
+            output = io.StringIO()
+            with redirect_stdout(output):
+                wrapper.watch_diagnostics(stream, source, type("Entry", (), {"name": str(entry)})(), [original, generated], threading.Lock())
+            event = json.loads(output.getvalue())
+            self.assertEqual(event["status"], "error")
+            self.assertEqual(event["diagnostics"][0], {"file": str(source), "line": 1, "column": 8, "severity": "error", "message": "unknown variable"})
+            self.assertEqual(event["diagnostics"][1]["file"], str(root / "part.typ"))
+
+    def test_watch_reports_real_typst_error(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            source = Path(directory) / "note.typ"
+            source.write_text("Hello\n\n#unknown_function()\n", encoding="utf-8", newline="\n")
+            process = subprocess.Popen([sys.executable, str(ROOT / "typst.py"), "watch", str(source), "--port", "0"], cwd=ROOT, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8")
+            events = []
+            def read_events():
+                for line in process.stdout:
+                    events.append(json.loads(line))
+            reader = threading.Thread(target=read_events, daemon=True)
+            reader.start()
+            try:
+                deadline = time.monotonic() + 15
+                while time.monotonic() < deadline and not any(e.get("type") == "compile" for e in events):
+                    time.sleep(0.05)
+                event = next(e for e in events if e.get("type") == "compile")
+                self.assertEqual(event["status"], "error")
+                diagnostic = event["diagnostics"][0]
+                self.assertEqual((diagnostic["file"], diagnostic["line"], diagnostic["column"]), (str(source), 3, 1))
+                self.assertIn("unknown", diagnostic["message"])
+                self.assertFalse(any(e.get("type") in ("ready", "preview") for e in events))
+                source.write_text("Corrected text.\n", encoding="utf-8", newline="\n")
+                deadline = time.monotonic() + 15
+                while time.monotonic() < deadline and not any(e.get("type") == "preview" for e in events):
+                    time.sleep(0.05)
+                self.assertEqual([e["type"] for e in events[:3]], ["compile", "compile", "preview"])
+                self.assertEqual(events[1]["status"], "success")
+                with urllib.request.urlopen(events[2]["url"], timeout=2) as response:
+                    self.assertIn("Corrected text.", response.read().decode("utf-8"))
+                source.write_text("Updated again.\n", encoding="utf-8", newline="\n")
+                deadline = time.monotonic() + 15
+                while time.monotonic() < deadline and len([e for e in events if e.get("type") == "compile"]) < 3:
+                    time.sleep(0.05)
+                self.assertEqual(len([e for e in events if e.get("type") == "preview"]), 1)
+                self.assertEqual(len([e for e in events if e.get("type") == "compile"]), 3)
+            finally:
+                process.stdin.write('{"action":"quit"}\n')
+                process.stdin.flush()
+                process.wait(timeout=10)
+                reader.join(timeout=2)
+                process.stdin.close()
+                process.stdout.close()
+                process.stderr.close()
+
     def test_site_shares_merged_styles_scripts_and_optional_pele(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as directory:
             root = Path(directory)
@@ -209,7 +270,6 @@ class WrapperTests(unittest.TestCase):
                 port = sock.getsockname()[1]
 
             def start(*args, **kwargs):
-                kwargs.update(stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 process = original_popen(*args, **kwargs)
                 child.append(process)
                 return process

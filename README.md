@@ -123,9 +123,14 @@ For live preview, run:
 python typst.py watch note.typ -- --root .
 ```
 
-The wrapper emits `{"event":"ready","url":"http://127.0.0.1:3000/"}` on stdout
-and reloads the page after recompilation. Watch stdout is newline-delimited JSON;
-diagnostics are written to stderr.
+Watch stdout is newline-delimited JSON. Each `compile` event contains a status,
+the input path and a `diagnostics` array. After the first successful compile and
+HTML postprocessing, the wrapper emits a single `preview` event with the URL;
+the successful `compile` event always precedes it. Failed compilations report
+diagnostics without emitting `preview`. The page reloads after recompilation. Diagnostics
+include severity, message, and, when available, file, line and column; locations
+in the temporary bundle are mapped back to the original source. Watch uses
+Typst's short diagnostic format and manages `--diagnostic-format` itself.
 It uses port 3000 by default, falling back to a free port if needed; use
 `--port 3001` to select a port or `--port 0` to request a free one. Watch uses a
 temporary site that is removed on exit. Output paths, `--site-root`,
@@ -143,9 +148,8 @@ per line to the watch process's stdin, for example:
 {"action":"quit"}
 ```
 
-Each command receives a JSON response on stdout: successful responses contain
-`ok: true` and the action; invalid commands contain `ok: false` and an error.
-Closing stdin leaves the preview running; send `quit` to stop it.
+Invalid commands produce a `protocol_error` event. Send `quit` or close stdin
+to stop the preview.
 
 The wrapper adds source-line anchors such as `#L3` to eligible top-level
 headings and paragraphs in the main file. Navigation uses the nearest preceding
@@ -153,7 +157,7 @@ anchor and expands collapsed sections. These links change when earlier lines
 are edited; the `L<number>` ID namespace is reserved. Use `--no-line-anchors`
 to disable instrumentation. The wrapper creates a temporary entry beside the
 source, so the source directory must be writable; its filename may also affect
-diagnostics or code that depends on the source filename.
+code that depends on the source filename.
 
 ## Recommended packages
 
