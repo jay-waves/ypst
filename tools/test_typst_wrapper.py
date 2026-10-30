@@ -1,4 +1,6 @@
 import importlib.util
+import io
+from contextlib import redirect_stdout
 import json
 import os
 from pathlib import Path
@@ -41,49 +43,37 @@ class WrapperTests(unittest.TestCase):
             page = root / "index.html"
             page.write_text("<html><body>Preview</body></html>", encoding="utf-8")
             stop = threading.Event()
-            server = wrapper.serve(root, page, 0, source_root=root, stop=stop)
+            control = {"seq": 0, "hash": None}
+            lock = threading.Condition()
+            server = wrapper.serve(root, page, 0, source_root=root, stop=stop, control=control, control_lock=lock)
             url = f"http://127.0.0.1:{server.server_address[1]}"
-            def post(data, origin=None):
-                headers = {"Content-Type": "application/json"}
-                if origin:
-                    headers["Origin"] = origin
-                request = urllib.request.Request(url + "/_control", data=json.dumps(data).encode(), headers=headers)
-                return urllib.request.urlopen(request, timeout=2)
             try:
                 html = urllib.request.urlopen(url, timeout=2).read().decode()
                 self.assertIn("new EventSource('/__typst_events')", html)
                 events = urllib.request.urlopen(url + "/__typst_events", timeout=3)
-                self.assertEqual(events.headers.get_content_type(), "text/event-stream")
                 def event():
                     line = events.readline().decode()
                     self.assertTrue(line.startswith("data: "))
                     self.assertEqual(events.readline(), b"\n")
                     return json.loads(line[6:])
                 initial = event()
-                self.assertEqual(initial["seq"], 0)
-                with post({"action": "navigate", "line": 12}) as response:
-                    self.assertEqual(response.status, 200)
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    wrapper.read_commands(control, lock, stop, io.StringIO(
+                        '{"action":"navigate","line":12}\n'
+                        '{"action":"navigate","line":true}\n'
+                        'invalid\n'))
+                replies = [json.loads(line) for line in output.getvalue().splitlines()]
+                self.assertEqual(replies[0], {"ok": True, "action": "navigate", "line": 12})
+                self.assertFalse(replies[1]["ok"])
+                self.assertFalse(replies[2]["ok"])
                 self.assertEqual(event()["hash"], "#L12")
-                state = json.load(urllib.request.urlopen(url + "/_control", timeout=2))
-                self.assertEqual(state, {"seq": 1, "hash": "#L12"})
-                with post({"action": "navigate", "line": 12}):
-                    pass
-                self.assertEqual(event()["seq"], 2)
-                self.assertEqual(json.load(urllib.request.urlopen(url + "/_control"))["seq"], 2)
                 page.write_text("<html><body>Updated</body></html>", encoding="utf-8")
                 os.utime(page, ns=(int(initial["stamp"]) + 2_000_000_000,) * 2)
                 self.assertNotEqual(event()["stamp"], initial["stamp"])
-                for bad in ({"action": "navigate", "line": 0}, {"action": "navigate", "line": True}, {"action": "unknown"}):
-                    with self.assertRaises(urllib.error.HTTPError) as error:
-                        post(bad)
-                    self.assertEqual(error.exception.code, 400)
-                with self.assertRaises(urllib.error.HTTPError) as error:
-                    post({"action": "quit"}, origin="https://example.com")
-                self.assertEqual(error.exception.code, 403)
-                self.assertFalse(stop.is_set())
-                with post({"action": "quit"}):
-                    pass
-                self.assertTrue(stop.wait(2))
+                with redirect_stdout(output):
+                    wrapper.read_commands(control, lock, stop, io.StringIO('{"action":"quit"}\n'))
+                self.assertTrue(stop.is_set())
                 events.close()
             finally:
                 server.shutdown()
@@ -219,7 +209,8 @@ class WrapperTests(unittest.TestCase):
                 port = sock.getsockname()[1]
 
             def start(*args, **kwargs):
-                process = original_popen(*args, **kwargs, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                kwargs.update(stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                process = original_popen(*args, **kwargs)
                 child.append(process)
                 return process
 

@@ -124,53 +124,42 @@ def assets_prefix(directory, page_dir, port=None, root=None):
 RELOAD_SCRIPT = """<script>(()=>{let stamp=null,seq=null;const events=new EventSource('/__typst_events');events.onmessage=event=>{const state=JSON.parse(event.data);if(stamp!==null&&state.stamp!==stamp){location.reload();return}stamp=state.stamp;if(state.seq!==seq&&state.hash){if(location.hash===state.hash)window.dispatchEvent(new Event('hashchange'));else location.hash=state.hash}seq=state.seq}})();</script>"""
 
 
-def serve(root, bundle_html, port, allow_fallback=False, source_root=None, stop=None):
-    control_lock = threading.Condition()
-    control = {"seq": 0, "hash": None}
-    stop = stop if stop is not None else threading.Event()
-    class Handler(SimpleHTTPRequestHandler):
-        def send_json(self, status, value):
-            body = json.dumps(value).encode("utf-8")
-            self.send_response(status)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(body)))
-            self.send_header("Cache-Control", "no-store")
-            self.end_headers()
-            self.wfile.write(body)
+def emit_json(value):
+    print(json.dumps(value, ensure_ascii=True, separators=(",", ":")), flush=True)
 
-        def do_POST(self):
-            if urlsplit(self.path).path != "/_control":
-                self.send_error(404)
-                return
+
+def read_commands(control, control_lock, stop, stream=None):
+    stream = stream if stream is not None else sys.stdin
+    try:
+        for line in stream:
             try:
-                length = int(self.headers.get("Content-Length", ""))
-                if not 0 < length <= 1024 or self.headers.get_content_type() != "application/json":
-                    raise ValueError()
-                body = self.rfile.read(length)
-                # Consume the request body before responding, including on Windows.
-                expected = f"127.0.0.1:{self.server.server_address[1]}"
-                if self.headers.get("Host") != expected or (self.headers.get("Origin") and self.headers.get("Origin") != "http://" + expected):
-                    self.send_error(403)
-                    return
-                data = json.loads(body)
-                if not isinstance(data, dict):
-                    raise ValueError()
+                data = json.loads(line)
                 if data == {"action": "quit"}:
-                    self.send_json(200, {"ok": True})
                     stop.set()
                     return
-                line = data.get("line")
-                if set(data) != {"action", "line"} or data["action"] != "navigate" or type(line) is not int or not 1 <= line <= 9007199254740991:
-                    raise ValueError()
-            except (ValueError, UnicodeError):
-                self.send_error(400, "Invalid control request")
-                return
-            with control_lock:
-                control["seq"] += 1
-                control["hash"] = f"#L{line}"
-                control_lock.notify_all()
-            self.send_json(200, {"ok": True})
+                if not isinstance(data, dict):
+                    raise ValueError("command must be an object")
+                number = data.get("line")
+                if set(data) != {"action", "line"} or data["action"] != "navigate" or type(number) is not int or not 1 <= number <= 9007199254740991:
+                    raise ValueError("invalid command")
+                with control_lock:
+                    control["seq"] += 1
+                    control["hash"] = f"#L{number}"
+                    control_lock.notify_all()
+            except json.JSONDecodeError:
+                emit_json({"type": "protocol_error", "message": "invalid JSON command"})
+            except (ValueError, TypeError) as error:
+                emit_json({"type": "protocol_error", "message": str(error)})
+    except (OSError, ValueError):
+        pass
+    stop.set()
 
+
+def serve(root, bundle_html, port, allow_fallback=False, source_root=None, stop=None, control=None, control_lock=None):
+    control_lock = control_lock if control_lock is not None else threading.Condition()
+    control = control if control is not None else {"seq": 0, "hash": None}
+    stop = stop if stop is not None else threading.Event()
+    class Handler(SimpleHTTPRequestHandler):
         def do_GET(self):
             if urlsplit(self.path).path == "/__typst_events":
                 self.send_response(200)
@@ -199,11 +188,6 @@ def serve(root, bundle_html, port, allow_fallback=False, source_root=None, stop=
                             control_lock.wait(timeout=0.5)
                 except (OSError, ConnectionError):
                     pass
-                return
-            if urlsplit(self.path).path == "/_control":
-                with control_lock:
-                    state = control.copy()
-                self.send_json(200, state)
                 return
             if source_root is not None and self.path.split("?", 1)[0] in ("/", "/index.html"):
                 try:
@@ -336,13 +320,17 @@ def main():
     entry = None
     process = None
     stop = threading.Event()
+    control_lock = threading.Condition()
+    control = {"seq": 0, "hash": None}
     try:
         port = None
         if options.command == "watch" and not options.no_serve:
             requested_port = 3000 if options.port is None else options.port
-            server = serve(site_root, bundle_html, requested_port, allow_fallback=options.port is None, source_root=root, stop=stop)
+            server = serve(site_root, bundle_html, requested_port, allow_fallback=options.port is None, source_root=root, stop=stop, control=control, control_lock=control_lock)
             port = server.server_address[1]
-            print(f"Preview: http://127.0.0.1:{port}/", flush=True)
+            emit_json({"type": "ready", "input": str(source)})
+            emit_json({"type": "preview", "url": f"http://127.0.0.1:{port}/"})
+            threading.Thread(target=read_commands, args=(control, control_lock, stop), daemon=True).start()
         preview = (source.parent, root, f"http://127.0.0.1:{port}") if cache else None
         entry, last_text = make_compiler_source(source, not options.no_line_anchors, site_root is not None, preview)
         compiler_options = ["--format", "bundle" if site_root else "html", "--features", "bundle,html" if site_root else "html"]
@@ -360,9 +348,10 @@ def main():
             return result
 
         command = ["typst", "watch", *compiler_options, "--no-serve", entry.name, str(requested)]
-        process = subprocess.Popen(command, stdin=subprocess.DEVNULL)
+        process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=sys.stderr)
         last_compiled = None
         last_error = None
+        last_compile_status = None
         while process.poll() is None and not stop.is_set():
             current = source.read_text(encoding="utf-8")
             if current != last_text:
@@ -373,6 +362,7 @@ def main():
                 if compiled != last_compiled:
                     optimize_file(bundle_html)
                     last_compiled = bundle_html.stat().st_mtime_ns
+                    emit_json({"type": "compile", "status": "success", "input": str(source), "duration_ms": 0, "diagnostics": []})
                 last_error = None
             except FileNotFoundError:
                 pass
@@ -381,8 +371,16 @@ def main():
                 if message != last_error:
                     print(f"typst.py: {message}", file=sys.stderr, flush=True)
                     last_error = message
+                    if last_compile_status != "error":
+                        emit_json({"type": "compile", "status": "error", "input": str(source), "duration_ms": 0, "diagnostics": [{"severity": "error", "message": message}]})
+                    last_compile_status = "error"
+                continue
+            last_compile_status = "success"
             stop.wait(options.interval)
-        return 0 if stop.is_set() else process.returncode
+        if stop.is_set():
+            emit_json({"type": "stopped", "reason": "stdin_closed"})
+            return 0
+        return process.returncode
     except (OSError, ValueError) as error:
         print(f"typst.py: {error}", file=sys.stderr)
         return 1

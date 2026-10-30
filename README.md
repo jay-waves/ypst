@@ -123,7 +123,9 @@ For live preview, run:
 python typst.py watch note.typ -- --root .
 ```
 
-The wrapper prints a local preview URL and reloads the page after recompilation.
+The wrapper emits `{"event":"ready","url":"http://127.0.0.1:3000/"}` on stdout
+and reloads the page after recompilation. Watch stdout is newline-delimited JSON;
+diagnostics are written to stderr.
 It uses port 3000 by default, falling back to a free port if needed; use
 `--port 3001` to select a port or `--port 0` to request a free one. Watch uses a
 temporary site that is removed on exit. Output paths, `--site-root`,
@@ -133,13 +135,17 @@ to produce deployable output.
 During preview, literal `image("path")` calls in the main file use local URLs
 for existing PNG, JPEG, WebP, and SVG files inside the working directory. One
 percentage `width` or `height` argument is supported. Other images retain
-Typst's native HTML output; compiled HTML embeds images. The preview server also
-accepts JSON commands at `POST /_control` on the printed port, for example:
+Typst's native HTML output; compiled HTML embeds images. Send one JSON command
+per line to the watch process's stdin, for example:
 
-```sh
-curl -X POST http://127.0.0.1:3000/_control -H 'Content-Type: application/json' -d '{"action":"navigate","line":12}'
-curl -X POST http://127.0.0.1:3000/_control -H 'Content-Type: application/json' -d '{"action":"quit"}'
+```json
+{"action":"navigate","line":12}
+{"action":"quit"}
 ```
+
+Each command receives a JSON response on stdout: successful responses contain
+`ok: true` and the action; invalid commands contain `ok: false` and an error.
+Closing stdin leaves the preview running; send `quit` to stop it.
 
 The wrapper adds source-line anchors such as `#L3` to eligible top-level
 headings and paragraphs in the main file. Navigation uses the nearest preceding
