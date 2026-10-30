@@ -14,6 +14,24 @@ On Linux, use `python3 install.py`. Run it again after updating this checkout;
 it refreshes the existing `0.1.0` installation, including HTML styles and scripts.
 The script can be called from any working directory.
 
+## GitHub Actions
+
+Use the repository's Composite Action to install the Typst compiler version
+declared by this template, its Python dependencies, and the local
+`@local/ypst-template:0.1.0` package. Check out the article repository first;
+then compile and deploy it in your own workflow steps:
+
+```yaml
+steps:
+  - uses: actions/checkout@v4
+  - uses: jay-waves/ypst-template@main
+  - run: typst compile article.typ article.pdf
+```
+
+The action installs Typst `0.15.0` and reads Python dependencies from the
+template repository's `requirements.txt`. Use a branch, tag, or commit SHA in
+the `uses` reference to select the action revision.
+
 | System | Package destination |
 | --- | --- |
 | Windows | `%APPDATA%/typst/packages/local/ypst-template/0.1.0/` |

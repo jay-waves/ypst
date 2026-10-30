@@ -1,0 +1,22 @@
+name: Set up ypst-template
+description: Install the Typst compiler, Python dependencies, and the local ypst-template package.
+runs:
+  using: composite
+  steps:
+    - name: Set up Typst
+      uses: typst-community/setup-typst@v5
+      with:
+        typst-version: 0.15.0
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.x"
+
+    - name: Install template Python dependencies
+      shell: bash
+      run: python -m pip install -r "$GITHUB_ACTION_PATH/requirements.txt"
+
+    - name: Install local ypst-template package
+      shell: bash
+      run: python "$GITHUB_ACTION_PATH/install.py"
