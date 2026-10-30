@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import socket
@@ -50,14 +51,28 @@ class WrapperTests(unittest.TestCase):
                 return urllib.request.urlopen(request, timeout=2)
             try:
                 html = urllib.request.urlopen(url, timeout=2).read().decode()
-                self.assertIn("fetch('/_control'", html)
+                self.assertIn("new EventSource('/__typst_events')", html)
+                events = urllib.request.urlopen(url + "/__typst_events", timeout=3)
+                self.assertEqual(events.headers.get_content_type(), "text/event-stream")
+                def event():
+                    line = events.readline().decode()
+                    self.assertTrue(line.startswith("data: "))
+                    self.assertEqual(events.readline(), b"\n")
+                    return json.loads(line[6:])
+                initial = event()
+                self.assertEqual(initial["seq"], 0)
                 with post({"action": "navigate", "line": 12}) as response:
                     self.assertEqual(response.status, 200)
+                self.assertEqual(event()["hash"], "#L12")
                 state = json.load(urllib.request.urlopen(url + "/_control", timeout=2))
                 self.assertEqual(state, {"seq": 1, "hash": "#L12"})
                 with post({"action": "navigate", "line": 12}):
                     pass
+                self.assertEqual(event()["seq"], 2)
                 self.assertEqual(json.load(urllib.request.urlopen(url + "/_control"))["seq"], 2)
+                page.write_text("<html><body>Updated</body></html>", encoding="utf-8")
+                os.utime(page, ns=(int(initial["stamp"]) + 2_000_000_000,) * 2)
+                self.assertNotEqual(event()["stamp"], initial["stamp"])
                 for bad in ({"action": "navigate", "line": 0}, {"action": "navigate", "line": True}, {"action": "unknown"}):
                     with self.assertRaises(urllib.error.HTTPError) as error:
                         post(bad)
@@ -69,6 +84,7 @@ class WrapperTests(unittest.TestCase):
                 with post({"action": "quit"}):
                     pass
                 self.assertTrue(stop.wait(2))
+                events.close()
             finally:
                 server.shutdown()
                 server.server_close()

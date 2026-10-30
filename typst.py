@@ -119,11 +119,11 @@ def assets_prefix(directory, page_dir, port=None, root=None):
     return quote(relative.rstrip("/") + "/", safe="/.")
 
 
-RELOAD_SCRIPT = """<script>(()=>{let stamp=null,seq=null;async function poll(){try{const [r,c]=await Promise.all([fetch('/__typst_bundle_stamp',{cache:'no-store'}),fetch('/_control',{cache:'no-store'})]);const n=await r.text(),state=await c.json();if(stamp!==null&&n!==stamp){location.reload();return}stamp=n;if(state.seq!==seq&&state.hash){if(location.hash===state.hash)window.dispatchEvent(new Event('hashchange'));else location.hash=state.hash}seq=state.seq}catch{}setTimeout(poll,800)}poll()})();</script>"""
+RELOAD_SCRIPT = """<script>(()=>{let stamp=null,seq=null;const events=new EventSource('/__typst_events');events.onmessage=event=>{const state=JSON.parse(event.data);if(stamp!==null&&state.stamp!==stamp){location.reload();return}stamp=state.stamp;if(state.seq!==seq&&state.hash){if(location.hash===state.hash)window.dispatchEvent(new Event('hashchange'));else location.hash=state.hash}seq=state.seq}})();</script>"""
 
 
 def serve(root, bundle_html, port, allow_fallback=False, source_root=None, stop=None):
-    control_lock = threading.Lock()
+    control_lock = threading.Condition()
     control = {"seq": 0, "hash": None}
     stop = stop if stop is not None else threading.Event()
     class Handler(SimpleHTTPRequestHandler):
@@ -166,26 +166,42 @@ def serve(root, bundle_html, port, allow_fallback=False, source_root=None, stop=
             with control_lock:
                 control["seq"] += 1
                 control["hash"] = f"#L{line}"
+                control_lock.notify_all()
             self.send_json(200, {"ok": True})
 
         def do_GET(self):
+            if urlsplit(self.path).path == "/__typst_events":
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Cache-Control", "no-cache")
+                self.end_headers()
+                previous = None
+                heartbeat = time.monotonic()
+                try:
+                    while not stop.is_set():
+                        try:
+                            stamp = str(bundle_html.stat().st_mtime_ns)
+                        except OSError:
+                            stamp = "0"
+                        with control_lock:
+                            state = {**control, "stamp": stamp}
+                            if state != previous:
+                                self.wfile.write(("data: " + json.dumps(state) + "\n\n").encode("utf-8"))
+                                self.wfile.flush()
+                                previous = state
+                                heartbeat = time.monotonic()
+                            elif time.monotonic() - heartbeat >= 25:
+                                self.wfile.write(b": keepalive\n\n")
+                                self.wfile.flush()
+                                heartbeat = time.monotonic()
+                            control_lock.wait(timeout=0.5)
+                except (OSError, ConnectionError):
+                    pass
+                return
             if urlsplit(self.path).path == "/_control":
                 with control_lock:
                     state = control.copy()
                 self.send_json(200, state)
-                return
-            if self.path.split("?", 1)[0] == "/__typst_bundle_stamp":
-                try:
-                    stamp = str(bundle_html.stat().st_mtime_ns)
-                except OSError:
-                    stamp = "0"
-                body = stamp.encode("ascii")
-                self.send_response(200)
-                self.send_header("Content-Type", "text/plain; charset=utf-8")
-                self.send_header("Content-Length", str(len(body)))
-                self.send_header("Cache-Control", "no-store")
-                self.end_headers()
-                self.wfile.write(body)
                 return
             if source_root is not None and self.path.split("?", 1)[0] in ("/", "/index.html"):
                 try:
