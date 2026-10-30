@@ -63,6 +63,8 @@ def write_compiler_source(entry, source, with_anchors, site=False, preview=None)
     entry.write('#document("index.html")[\n' + body + "\n]\n" if site else body)
     entry.truncate()
     entry.flush()
+    # Publish writes while the temporary file remains open for Windows cleanup.
+    os.fsync(entry.fileno())
 
 
 def make_compiler_source(source, with_anchors, site=False, preview=None):

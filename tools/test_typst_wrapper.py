@@ -210,7 +210,7 @@ class WrapperTests(unittest.TestCase):
             svg = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"></svg>'
             (root / "main.svg").write_text(svg, encoding="utf-8")
             (root / "nested.svg").write_text(svg, encoding="utf-8")
-            source.write_text('Original text.\n\n#image("main.svg", width: 70%)\n\n#include "part.typ"\n', encoding="utf-8", newline="\n")
+            source.write_text("x" * 10000 + '\n\nOriginal text.\n\n#image("main.svg", width: 70%)\n\n#include "part.typ"\n', encoding="utf-8", newline="\n")
             include.write_text('Included text.\n\n#image("nested.svg")\n', encoding="utf-8", newline="\n")
             child = []
             original_popen = subprocess.Popen
@@ -245,7 +245,7 @@ class WrapperTests(unittest.TestCase):
                     self.assertIn('data:image/svg+xml;base64,', html)
                     with urllib.request.urlopen(f'http://127.0.0.1:{port}/__source/{root.name}/main.svg') as response:
                         self.assertEqual(response.read().decode(), svg)
-                    source.write_text('Updated text.\n\n#image("main.svg", width: 70%)\n\n#include "part.typ"\n', encoding="utf-8", newline="\n")
+                    source.write_text("x" * 10000 + '\n\nUpdated text.\n\n#image("main.svg", width: 70%)\n\n#include "part.typ"\n', encoding="utf-8", newline="\n")
                     while time.monotonic() < deadline and "Updated text" not in page():
                         time.sleep(0.1)
                     self.assertIn("Updated text", page())
