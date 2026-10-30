@@ -117,47 +117,9 @@ Links are emitted as written, so use paths relative to the output page, such as
 `../b/` from `a/index.html` to `b/index.html`. Links to `.typ` files are not
 converted to site URLs.
 
-For live preview, run:
-
-```sh
-python typst.py watch note.typ -- --root .
-```
-
-Watch stdout is newline-delimited JSON. Each `compile` event contains a status,
-the input path and a `diagnostics` array. After the first successful compile and
-HTML postprocessing, the wrapper emits a single `preview` event with the URL;
-the successful `compile` event always precedes it. Failed compilations report
-diagnostics without emitting `preview`. The page reloads after recompilation. Diagnostics
-include severity, message, and, when available, file, line and column; locations
-in the temporary bundle are mapped back to the original source. Watch uses
-Typst's short diagnostic format and manages `--diagnostic-format` itself.
-It uses port 3000 by default, falling back to a free port if needed; use
-`--port 3001` to select a port or `--port 0` to request a free one. Watch uses a
-temporary site that is removed on exit. Output paths, `--site-root`,
-`--assets-url`, and `--no-serve` are not supported in watch mode. Use `compile`
-to produce deployable output.
-
-During preview, literal `image("path")` calls in the main file use local URLs
-for existing PNG, JPEG, WebP, and SVG files inside the working directory. One
-percentage `width` or `height` argument is supported. Other images retain
-Typst's native HTML output; compiled HTML embeds images. Send one JSON command
-per line to the watch process's stdin, for example:
-
-```json
-{"action":"navigate","line":12}
-{"action":"quit"}
-```
-
-Invalid commands produce a `protocol_error` event. Send `quit` or close stdin
-to stop the preview.
-
-The wrapper adds source-line anchors such as `#L3` to eligible top-level
-headings and paragraphs in the main file. Navigation uses the nearest preceding
-anchor and expands collapsed sections. These links change when earlier lines
-are edited; the `L<number>` ID namespace is reserved. Use `--no-line-anchors`
-to disable instrumentation. The wrapper creates a temporary entry beside the
-source, so the source directory must be writable; its filename may also affect
-code that depends on the source filename.
+Source-line anchor injection is temporarily disabled. The wrapper creates a
+temporary entry beside the source, so the source directory must be writable;
+its filename may also affect code that depends on the source filename.
 
 ## Recommended packages
 

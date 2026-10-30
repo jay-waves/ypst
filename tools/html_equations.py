@@ -13,7 +13,7 @@ def optimize_equations(html):
 
     def equation(match):
         svg = match[2]
-        # Already processed; useful when watch polls the same output again.
+        # Leave previously optimized equations unchanged.
         if b'data-inherit-fill=""' in svg:
             return match[0]
         edits = []
@@ -125,7 +125,7 @@ def optimize_file(path):
     original = path.read_bytes()
     optimized = optimize_equations(original)
     if optimized != original:
-        # A sibling and atomic replace keep preview requests from seeing partial HTML.
+        # Replace the output atomically after optimization.
         import tempfile
         with tempfile.NamedTemporaryFile(dir=path.parent, prefix=".equation-", delete=False) as stream:
             temporary = Path(stream.name)

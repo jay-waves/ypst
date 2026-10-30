@@ -1,18 +1,9 @@
 import importlib.util
-import io
-from contextlib import redirect_stdout
-import json
-import os
 from pathlib import Path
 import subprocess
-import socket
 import sys
 import tempfile
-import threading
-import time
 import unittest
-import urllib.request
-from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent.parent
 spec = importlib.util.spec_from_file_location("typst_wrapper", ROOT / "typst.py")
@@ -36,48 +27,6 @@ class WrapperTests(unittest.TestCase):
             self.assertIn('file.pdf', html)
             self.assertIn('https://example.com/a.typ', html)
             self.assertIn('href="#part"', html)
-
-    def test_preview_control_navigation_and_quit(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            page = root / "index.html"
-            page.write_text("<html><body>Preview</body></html>", encoding="utf-8")
-            stop = threading.Event()
-            control = {"seq": 0, "hash": None}
-            lock = threading.Condition()
-            server = wrapper.serve(root, page, 0, source_root=root, stop=stop, control=control, control_lock=lock)
-            url = f"http://127.0.0.1:{server.server_address[1]}"
-            try:
-                html = urllib.request.urlopen(url, timeout=2).read().decode()
-                self.assertIn("new EventSource('/__typst_events')", html)
-                events = urllib.request.urlopen(url + "/__typst_events", timeout=3)
-                def event():
-                    line = events.readline().decode()
-                    self.assertTrue(line.startswith("data: "))
-                    self.assertEqual(events.readline(), b"\n")
-                    return json.loads(line[6:])
-                initial = event()
-                output = io.StringIO()
-                with redirect_stdout(output):
-                    wrapper.read_commands(control, lock, stop, io.StringIO(
-                        '{"action":"navigate","line":12}\n'
-                        '{"action":"navigate","line":true}\n'
-                        'invalid\n'))
-                replies = [json.loads(line) for line in output.getvalue().splitlines()]
-                self.assertEqual(replies[0], {"ok": True, "action": "navigate", "line": 12})
-                self.assertFalse(replies[1]["ok"])
-                self.assertFalse(replies[2]["ok"])
-                self.assertEqual(event()["hash"], "#L12")
-                page.write_text("<html><body>Updated</body></html>", encoding="utf-8")
-                os.utime(page, ns=(int(initial["stamp"]) + 2_000_000_000,) * 2)
-                self.assertNotEqual(event()["stamp"], initial["stamp"])
-                with redirect_stdout(output):
-                    wrapper.read_commands(control, lock, stop, io.StringIO('{"action":"quit"}\n'))
-                self.assertTrue(stop.is_set())
-                events.close()
-            finally:
-                server.shutdown()
-                server.server_close()
 
     def test_document_metadata_error_removes_temporary_source(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as directory:
@@ -115,7 +64,7 @@ class WrapperTests(unittest.TestCase):
             script = (
                 "import sys, time; from pathlib import Path; "
                 "from typst import make_compiler_source; "
-                "entry, _ = make_compiler_source(Path(sys.argv[1]), False); "
+                "entry = make_compiler_source(Path(sys.argv[1]), False); "
                 "print(entry.name, flush=True); time.sleep(60)"
             )
             process = subprocess.Popen([sys.executable, "-c", script, str(source)],
@@ -139,67 +88,6 @@ class WrapperTests(unittest.TestCase):
         self.assertEqual(wrapper.diagnostic_defaults(["--diagnostic-format", "human"]), [])
         self.assertEqual(wrapper.diagnostic_defaults(["--diagnostic-format=human"]), [])
 
-    def test_watch_diagnostics_maps_bundle_and_imports(self):
-        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
-            root = Path(directory)
-            source = root / "note.typ"
-            entry = root / ".typst-bundle-test.typ"
-            original = "Hello #unknown()\n"
-            generated = '#document("index.html")[\n' + wrapper.PREVIEW_IMAGE_HELPER + '#html.elem("span")Hello #unknown()\n]\n'
-            row = 2 + wrapper.PREVIEW_IMAGE_HELPER.count("\n")
-            stream = io.StringIO(f'[12:00:00] compiled with errors\n{entry}:{row}:26: error: unknown variable\n{root / "part.typ"}:2:3: warning: example\n')
-            output = io.StringIO()
-            with redirect_stdout(output):
-                wrapper.watch_diagnostics(stream, source, type("Entry", (), {"name": str(entry)})(), [original, generated], threading.Lock())
-            event = json.loads(output.getvalue())
-            self.assertEqual(event["status"], "error")
-            self.assertEqual(event["diagnostics"][0], {"file": str(source), "line": 1, "column": 8, "severity": "error", "message": "unknown variable"})
-            self.assertEqual(event["diagnostics"][1]["file"], str(root / "part.typ"))
-
-    def test_watch_reports_real_typst_error(self):
-        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
-            source = Path(directory) / "note.typ"
-            source.write_text("Hello\n\n#unknown_function()\n", encoding="utf-8", newline="\n")
-            process = subprocess.Popen([sys.executable, str(ROOT / "typst.py"), "watch", str(source), "--port", "0"], cwd=ROOT, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8")
-            events = []
-            def read_events():
-                for line in process.stdout:
-                    events.append(json.loads(line))
-            reader = threading.Thread(target=read_events, daemon=True)
-            reader.start()
-            try:
-                deadline = time.monotonic() + 15
-                while time.monotonic() < deadline and not any(e.get("type") == "compile" for e in events):
-                    time.sleep(0.05)
-                event = next(e for e in events if e.get("type") == "compile")
-                self.assertEqual(event["status"], "error")
-                diagnostic = event["diagnostics"][0]
-                self.assertEqual((diagnostic["file"], diagnostic["line"], diagnostic["column"]), (str(source), 3, 1))
-                self.assertIn("unknown", diagnostic["message"])
-                self.assertFalse(any(e.get("type") in ("ready", "preview") for e in events))
-                source.write_text("Corrected text.\n", encoding="utf-8", newline="\n")
-                deadline = time.monotonic() + 15
-                while time.monotonic() < deadline and not any(e.get("type") == "preview" for e in events):
-                    time.sleep(0.05)
-                self.assertEqual([e["type"] for e in events[:3]], ["compile", "compile", "preview"])
-                self.assertEqual(events[1]["status"], "success")
-                with urllib.request.urlopen(events[2]["url"], timeout=2) as response:
-                    self.assertIn("Corrected text.", response.read().decode("utf-8"))
-                source.write_text("Updated again.\n", encoding="utf-8", newline="\n")
-                deadline = time.monotonic() + 15
-                while time.monotonic() < deadline and len([e for e in events if e.get("type") == "compile"]) < 3:
-                    time.sleep(0.05)
-                self.assertEqual(len([e for e in events if e.get("type") == "preview"]), 1)
-                self.assertEqual(len([e for e in events if e.get("type") == "compile"]), 3)
-            finally:
-                process.stdin.write('{"action":"quit"}\n')
-                process.stdin.flush()
-                process.wait(timeout=10)
-                reader.join(timeout=2)
-                process.stdin.close()
-                process.stdout.close()
-                process.stderr.close()
-
     def test_site_shares_merged_styles_scripts_and_optional_pele(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as directory:
             root = Path(directory)
@@ -213,6 +101,7 @@ class WrapperTests(unittest.TestCase):
             html = (root / "site" / root.name / "note" / "index.html").read_text(encoding="utf-8")
             self.assertNotIn('const sameDocumentFragment =', html)
             self.assertNotIn('source-line-anchor[data-line]', html)
+            self.assertNotIn('id="L4"', html)
             self.assertIn('theme.css', html)
             self.assertIn('theme.js', html)
             self.assertIn('pele.js', html)
@@ -248,69 +137,12 @@ class WrapperTests(unittest.TestCase):
                                         capture_output=True)
                 self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
                 html = output.read_text(encoding="utf-8")
-                self.assertIn('id="L4"', html)
+                self.assertNotIn('id="L4"', html)
                 self.assertIn('const sameDocumentFragment =', html)
                 self.assertIn('source-line-anchor[data-line]', html)
                 self.assertEqual('data-lang="mermaid"' in html, mermaid)
                 self.assertEqual('Copyright (c) 2026 kepano' in html, mermaid)
 
-    def test_native_watch_updates_temporary_source(self):
-        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
-            root = Path(directory)
-            source, include = root / "note.typ", root / "part.typ"
-            svg = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"></svg>'
-            (root / "main.svg").write_text(svg, encoding="utf-8")
-            (root / "nested.svg").write_text(svg, encoding="utf-8")
-            source.write_text("x" * 10000 + '\n\nOriginal text.\n\n#image("main.svg", width: 70%)\n\n#include "part.typ"\n', encoding="utf-8", newline="\n")
-            include.write_text('Included text.\n\n#image("nested.svg")\n', encoding="utf-8", newline="\n")
-            child = []
-            original_popen = subprocess.Popen
-            with socket.socket() as sock:
-                sock.bind(("127.0.0.1", 0))
-                port = sock.getsockname()[1]
-
-            def start(*args, **kwargs):
-                process = original_popen(*args, **kwargs)
-                child.append(process)
-                return process
-
-            with patch.object(wrapper.subprocess, "Popen", side_effect=start), \
-                 patch.object(sys, "argv", ["typst.py", "watch", str(source),
-                                           "--interval", "0.1", "--port", str(port)]):
-                thread = threading.Thread(target=wrapper.main)
-                thread.start()
-                try:
-                    deadline = time.monotonic() + 15
-                    url = f"http://127.0.0.1:{port}/"
-                    def page():
-                        try:
-                            return urllib.request.urlopen(url, timeout=2).read().decode("utf-8")
-                        except (OSError, urllib.error.HTTPError):
-                            return ""
-                    while time.monotonic() < deadline and "Original text" not in page():
-                        time.sleep(0.1)
-                    html = page()
-                    self.assertIn("Original text", html)
-                    self.assertIn(f'/__source/{root.name}/main.svg', html)
-                    self.assertIn('width: 70%', html)
-                    self.assertIn('data:image/svg+xml;base64,', html)
-                    with urllib.request.urlopen(f'http://127.0.0.1:{port}/__source/{root.name}/main.svg') as response:
-                        self.assertEqual(response.read().decode(), svg)
-                    source.write_text("x" * 10000 + '\n\nUpdated text.\n\n#image("main.svg", width: 70%)\n\n#include "part.typ"\n', encoding="utf-8", newline="\n")
-                    while time.monotonic() < deadline and "Updated text" not in page():
-                        time.sleep(0.1)
-                    self.assertIn("Updated text", page())
-                    include.write_text('Changed include.\n', encoding="utf-8", newline="\n")
-                    while time.monotonic() < deadline and "Changed include" not in page():
-                        time.sleep(0.1)
-                    self.assertIn("Changed include", page())
-                    self.assertFalse((root / "note.html").exists())
-                finally:
-                    if child:
-                        child[0].terminate()
-                    thread.join(timeout=10)
-                self.assertFalse(thread.is_alive())
-                self.assertFalse(list(root.glob('.typst-line-anchors-*')))
 
 
 if __name__ == "__main__":
