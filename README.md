@@ -14,24 +14,6 @@ On Linux, use `python3 install.py`. Run it again after updating this checkout;
 it refreshes the existing `0.1.0` installation, including HTML styles and scripts.
 The script can be called from any working directory.
 
-## GitHub Actions
-
-Use the repository's Composite Action to install the Typst compiler version
-declared by this template, its Python dependencies, and the local
-`@local/ypst-template:0.1.0` package. Check out the article repository first;
-then compile and deploy it in your own workflow steps:
-
-```yaml
-steps:
-  - uses: actions/checkout@v4
-  - uses: jay-waves/ypst-template@main
-  - run: typst compile article.typ article.pdf
-```
-
-The action installs Typst `0.15.0` and reads Python dependencies from the
-template repository's `requirements.txt`. Use a branch, tag, or commit SHA in
-the `uses` reference to select the action revision.
-
 | System | Package destination |
 | --- | --- |
 | Windows | `%APPDATA%/typst/packages/local/ypst-template/0.1.0/` |
@@ -74,6 +56,22 @@ Defaults are `theme: "light"` and `layout: "portrait"`:
 
 `--input theme=dark` also sets the PDF theme when no explicit theme is supplied. HTML automatically follows the system light/dark preference, including changes while the page is open. Theme and layout parameters affect PDF only.
 
+## GitHub Actions
+
+The composite action installs Typst `0.15.0`, the Python dependencies, and the
+local template package. Check out the article repository first, then compile
+and deploy it in your own workflow steps:
+
+```yaml
+steps:
+  - uses: actions/checkout@v4
+  - uses: jay-waves/ypst-template@main
+  - run: typst compile article.typ article.pdf
+```
+
+Use a branch, tag, or commit SHA in the `uses` reference to select the action
+revision.
+
 ## Features
 
 - `front-matter`: unnumbered headings without a forced page break.
@@ -82,11 +80,9 @@ Defaults are `theme: "light"` and `layout: "portrait"`:
 - Native equation, figure, and table references. Equations, figures, tables, and statement environments use chapter-prefixed numbering in PDF and HTML; counters restart at numbered top-level headings.
 - `diagram`, `node`, `edge`: Fletcher helpers with theme colors; `fletcher` exposes the full module.
 
-PDF uses native footnotes. HTML embeds the theme and interactive scripts by default. Click a footnote marker to expand or close it; opening another footnote closes the previous one. Headings are collapsible; inline equations use MathML and display equations use Typst-rendered SVG. SVG equations are not selectable as math. PDF and HTML layouts may differ.
-
-The Python wrapper compacts display-equation SVGs after export: repeated glyphs
-share document-level definitions, glyph IDs are shortened, and default fills
-inherit the theme color through CSS. Explicit colors and path coordinates are preserved.
+PDF uses native footnotes. In HTML, footnotes expand when clicked and headings
+are collapsible. Inline equations use MathML; display equations use SVG and
+are not selectable as math. PDF and HTML layouts may differ.
 
 HTML documents containing Mermaid code blocks use the bundled Pele 1.6.0
 browser build. This affects HTML only; PDF keeps the code block as code. Pele
@@ -94,88 +90,64 @@ supports a subset of Mermaid syntax. Its license is in `html/LICENSE-Pele.txt`.
 
 ### HTML export
 
-The Python wrapper adds source-line markers without changing the source file.
-Place `#set document(...)` before `#show: template`; the wrapper reports a
-clear error for this ordering mistake without changing the source.
-By default it exports a standalone HTML file containing the theme, scripts and
-images:
+Install the wrapper dependencies once, then compile a standalone HTML file:
 
 ```sh
 python -m pip install -r requirements.txt
-python typst.py compile note.typ
-python typst.py watch examples/components.typ -- --root .
+python typst.py compile note.typ                 # writes note.html
+python typst.py compile note.typ output.html     # choose an output file
+```
+
+The output embeds the theme, scripts, and images. Place `#set document(...)`
+before `#show: template`. Pass Typst options after `--`, for example
+`-- --root . --diagnostic-format human`.
+
+For a site with shared CSS and scripts, use:
+
+```sh
 python typst.py compile note.typ --site-root _site
 ```
 
-The default output for `note.typ` is `note.html`; an explicit output selects a
-different HTML file. With `--site-root _site`, the wrapper uses bundle export:
-`note.typ` produces `_site/note/index.html`, with source paths relative to the
-current working directory preserved. Merged CSS (`theme.css`), interactive scripts
-(`theme.js`), and the Pele renderer with its initializer (`pele.js`) are stored under `_site/_shared/typst/<content-hash>/` and reused across builds;
-pages share these files, and load `pele.js` only when Mermaid diagrams are present.
-An explicit output in
-site mode selects a bundle directory. Compile output references shared assets by
-relative URL; deploy the site directory together. Use `--assets-url /static/`
-with `--site-root` to specify a public URL prefix for the shared directory. The
-public URL must be mapped to the generated content-hash directory by your site.
-Links are emitted as written; use URLs relative to the output page, such as
-`../b/` to link from `a/index.html` to `b/index.html`. Source `.typ` links
-are not converted to site URLs.
+This writes `_site/note/index.html` and shared assets under
+`_site/_shared/typst/<content-hash>/`. Source paths relative to the working
+directory are preserved; an explicit output selects the page's bundle directory.
+Deploy the site directory together. `--assets-url /static/` replaces the relative
+shared-asset URL prefix; map that URL to the generated content-hash directory.
+Links are emitted as written, so use paths relative to the output page, such as
+`../b/` from `a/index.html` to `b/index.html`. Links to `.typ` files are not
+converted to site URLs.
 
-In watch mode, `typst.py` creates a temporary bundle in the system temporary
-directory and serves it on `127.0.0.1:3000`; if that port is already in use, it
-picks a free port. It prints a preview URL and reloads after recompilation. Use
-`--port 3001` to select a port, or `--port 0` to request a free port. Watch
-does not write an HTML file or site to the project; the temporary site is
-removed when watch exits. Output paths, `--site-root`, `--assets-url`, and
-`--no-serve` are not supported in watch mode. Use `compile` for a deployable
-site or standalone HTML.
+For live preview, run:
 
-Typst diagnostics use `short` format by default. Pass `--diagnostic-format
-human` after `--` to select the detailed format. The preview address is printed
-as `Preview: http://127.0.0.1:PORT/`.
+```sh
+python typst.py watch note.typ -- --root .
+```
 
-The preview server also accepts JSON commands at `POST /_control` on the same
-port. For example, with a preview running on port 3000:
+The wrapper prints a local preview URL and reloads the page after recompilation.
+It uses port 3000 by default, falling back to a free port if needed; use
+`--port 3001` to select a port or `--port 0` to request a free one. Watch uses a
+temporary site that is removed on exit. Output paths, `--site-root`,
+`--assets-url`, and `--no-serve` are not supported in watch mode. Use `compile`
+to produce deployable output.
+
+During preview, literal `image("path")` calls in the main file use local URLs
+for existing PNG, JPEG, WebP, and SVG files inside the working directory. One
+percentage `width` or `height` argument is supported. Other images retain
+Typst's native HTML output; compiled HTML embeds images. The preview server also
+accepts JSON commands at `POST /_control` on the printed port, for example:
 
 ```sh
 curl -X POST http://127.0.0.1:3000/_control -H 'Content-Type: application/json' -d '{"action":"navigate","line":12}'
 curl -X POST http://127.0.0.1:3000/_control -H 'Content-Type: application/json' -d '{"action":"quit"}'
 ```
 
-Navigation updates open preview pages on their next poll (normally within
-800 ms). `quit` stops the watcher and cleans up its resources. The endpoint is
-available only while watching; use the actual port printed by the wrapper.
-
-For watch previews only, simple literal `image("path")` calls in the main
-file are rewritten to local HTTP URLs for existing PNG, JPEG, WebP and SVG
-files inside the current working directory. One percentage `width` or `height`
-argument is supported. Other arguments, dynamic paths, images from included
-files, and generated images keep Typst's native HTML output. The preview server
-serves project files from the current working directory; images stay in place.
-In `compile` mode images remain embedded by Typst.
-`--no-line-anchors` bypasses source instrumentation. Keep the installed Typst
-package in sync with the checkout using `python install.py`.
-
-The helper keeps one temporary Typst entry beside the source to preserve relative
-imports, so the source directory must be writable. On Windows, the entry uses
-delete-on-close: the OS removes it even when Python is forcibly killed. Normal
-exit also removes it on other platforms. No dependency manifest is written. Markers
-such as `<span id="L3" data-line="3">`
-refer to one-based lines in the original file. Markers appear at the start of
-their heading or paragraph. The embedded navigation script resolves `#L3` to
-the closest preceding marker (or the first marker), expanding collapsed
-sections before scrolling. These links are not
-persistent identifiers: editing earlier lines changes them. The `L<number>`
-namespace is reserved; avoid IDs in that form elsewhere in the document.
-
-The helper uses Tree-sitter to identify top-level headings and paragraphs that
-start with text, including multiline paragraphs and inline markup. It skips
-paragraphs starting with markup or code, standalone calls, and content nested
-inside calls. It does not instrument included files. The language pack may
-download its Typst grammar on first use.
-Temporary filenames can affect diagnostics and code that depends on the source
-filename. Use `--no-line-anchors` when those limitations matter.
+The wrapper adds source-line anchors such as `#L3` to eligible top-level
+headings and paragraphs in the main file. Navigation uses the nearest preceding
+anchor and expands collapsed sections. These links change when earlier lines
+are edited; the `L<number>` ID namespace is reserved. Use `--no-line-anchors`
+to disable instrumentation. The wrapper creates a temporary entry beside the
+source, so the source directory must be writable; its filename may also affect
+diagnostics or code that depends on the source filename.
 
 ## Recommended packages
 
