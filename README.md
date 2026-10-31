@@ -182,8 +182,7 @@ HTML uses locally installed fonts and falls back to system fonts when they are u
 The `[tool.ypst-template.assets]` tables in `typst.toml` record bundled asset
 versions, files, sources and licenses. They are an inventory of this checkout,
 not an automatic installer or updater; fonts remain separately installed. The
-font version strings come from the files' embedded metadata. Python dependencies
-for the optional HTML wrapper are pinned separately in `requirements.txt`.
+font version strings come from the files' embedded metadata.
 
 The stylesheet targets standalone HTML; editor preview support is best-effort. See [HTML stylesheet notes](html/COMPATIBILITY.md).
 

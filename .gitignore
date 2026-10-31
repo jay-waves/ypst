@@ -1,5 +1,6 @@
 __pycache__/
 *.pyc
+.typst-bundle-*.typ
 # Keep locally downloaded and extracted Georgia files out of Git.
 fonts/[Gg]eorgia*/
 fonts/[Gg]eorgia*.ttf
