@@ -11,8 +11,8 @@ use std::{
 };
 
 const ADDRESS: &str = "127.0.0.1:8765";
-const SERVICE: &str = "lib.comrak-preview-v1";
-const RELOAD: &str = r#"<script data-comrak-preview>(()=>{let etag=__ETAG__;async function check(){try{let r=await fetch(location.href,{method:'HEAD',cache:'no-store'});let next=r.headers.get('etag');if(etag&&next&&etag!==next){location.reload();return}if(next)etag=next}catch{}}check();setInterval(check,750)})();</script>"#;
+const SERVICE: &str = "lib.comrak-preview-v2";
+const RELOAD: &str = r#"<script data-comrak-preview>(()=>{let etag=__ETAG__;const events=new EventSource('/_preview/events?path='+encodeURIComponent(location.pathname)+'&revision='+encodeURIComponent(__REVISION__));events.onmessage=e=>{events.close();const fragment=JSON.parse(e.data);if(fragment!==null)location.hash=fragment;location.reload()};async function check(){try{let r=await fetch(location.href,{method:'HEAD',cache:'no-store'});let next=r.headers.get('etag');if(etag&&next&&etag!==next){location.reload();return}if(next)etag=next}catch{}}check();setInterval(check,750)})();</script>"#;
 
 fn shared_root() -> PathBuf {
     std::env::temp_dir().join("lib-comrak-preview")
@@ -20,6 +20,34 @@ fn shared_root() -> PathBuf {
 
 fn hash(value: &[u8]) -> String {
     format!("{:x}", Sha256::digest(value))
+}
+
+fn notification_path(root: &Path, page: &Path) -> PathBuf {
+    root.join(".events")
+        .join(hash(page.to_string_lossy().as_bytes()))
+}
+
+fn notify(root: &Path, page: &Path, fragment: Option<&str>) -> Result<(), String> {
+    let dir = root.join(".events");
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_nanos();
+    let value = serde_json::json!({"revision": format!("{nonce}-{}", std::process::id()), "fragment": fragment});
+    let mut temp = tempfile::NamedTempFile::new_in(&dir).map_err(|e| e.to_string())?;
+    temp.write_all(value.to_string().as_bytes())
+        .map_err(|e| e.to_string())?;
+    temp.persist(notification_path(root, page))
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn notification(root: &Path, page: &Path) -> serde_json::Value {
+    fs::read(notification_path(root, page))
+        .ok()
+        .and_then(|data| serde_json::from_slice(&data).ok())
+        .unwrap_or_else(|| serde_json::json!({"revision": "", "fragment": null}))
 }
 
 fn project_name(root: &Path) -> String {
@@ -185,10 +213,16 @@ fn spawn_windows_server(root: &Path) -> Result<(), String> {
 
 pub fn compile(values: Vec<String>) -> Result<(), String> {
     let mut input = None;
+    let mut fragment = None;
     let mut root = PathBuf::from(".");
     let mut i = 0;
     while i < values.len() {
         match values[i].as_str() {
+            "--fragment" => {
+                i += 1;
+                fragment = Some(values.get(i).ok_or("--fragment requires a value")?.clone());
+            }
+            value if value.starts_with("--fragment=") => fragment = Some(value[11..].to_owned()),
             "--root" => {
                 i += 1;
                 root = values.get(i).ok_or("--root requires a value")?.into();
@@ -235,6 +269,8 @@ pub fn compile(values: Vec<String>) -> Result<(), String> {
     }
     ensure_server(&shared_root())?;
     let page = site.join(relative).with_extension("").join("index.html");
+    let page = dunce::canonicalize(page).map_err(|e| e.to_string())?;
+    notify(&shared_root(), &page, fragment.as_deref())?;
     let base = url::Url::from_directory_path(shared_root()).map_err(|_| "invalid root")?;
     let file = url::Url::from_file_path(page).map_err(|_| "invalid page")?;
     println!(
@@ -341,6 +377,33 @@ fn respond(mut stream: TcpStream, root: &Path) -> std::io::Result<()> {
         )?;
         return Ok(());
     }
+    if clean == "/_preview/events" && method == "GET" {
+        let parsed = url::Url::parse("http://localhost/")
+            .unwrap()
+            .join(target)
+            .ok();
+        let params: std::collections::HashMap<_, _> = parsed
+            .as_ref()
+            .map(|url| url.query_pairs().into_owned().collect())
+            .unwrap_or_default();
+        let Some(file) = params.get("path").and_then(|path| safe_file(root, path)) else {
+            stream.write_all(
+                b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            )?;
+            return Ok(());
+        };
+        let revision = params.get("revision").map(String::as_str).unwrap_or("");
+        stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: close\r\n\r\n: connected\n\n")?;
+        loop {
+            let value = notification(root, &file);
+            if value["revision"].as_str().unwrap_or("") != revision {
+                write!(stream, "data: {}\n\n", value["fragment"])?;
+                return Ok(());
+            }
+            std::thread::sleep(Duration::from_millis(200));
+            stream.write_all(b": keepalive\n\n")?;
+        }
+    }
     let Some(file) = safe_file(root, target) else {
         stream.write_all(
             b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
@@ -371,7 +434,12 @@ fn respond(mut stream: TcpStream, root: &Path) -> std::io::Result<()> {
             .rposition(|b| b.eq_ignore_ascii_case(b"</body>"))
             .unwrap_or(body.len());
         let revision = serde_json::to_string(&format!("\"{etag}\"")).unwrap();
-        let script = RELOAD.replace("__ETAG__", &revision);
+        let event_revision =
+            serde_json::to_string(notification(root, &file)["revision"].as_str().unwrap_or(""))
+                .unwrap();
+        let script = RELOAD
+            .replace("__ETAG__", &revision)
+            .replace("__REVISION__", &event_revision);
         body.splice(index..index, script.bytes());
     }
     let mime = mime_guess::from_path(&file).first_or_octet_stream();
@@ -400,6 +468,18 @@ mod tests {
             Some(root.join("nested/index.html"))
         );
         assert!(safe_file(&root, "/%2e%2e/etc/passwd").is_none());
+    }
+    #[test]
+    fn notifications_keep_fragment_and_advance_for_unchanged_pages() {
+        let dir = tempfile::tempdir().unwrap();
+        let page = dir.path().join("index.html");
+        notify(dir.path(), &page, Some("#章节")).unwrap();
+        let first = notification(dir.path(), &page);
+        assert_eq!(first["fragment"], "#章节");
+        notify(dir.path(), &page, None).unwrap();
+        let second = notification(dir.path(), &page);
+        assert_ne!(first["revision"], second["revision"]);
+        assert!(second["fragment"].is_null());
     }
     #[test]
     fn project_ids_are_stable_and_distinct() {

@@ -450,13 +450,13 @@ fn run() -> Result<i32, String> {
                 .is_some_and(|arg| arg == "--help" || arg == "-h") =>
         {
             println!(
-                "Usage: ypst serve INPUT [--root DIR]\n       ypst serve [--site-root DIR] [--port PORT]"
+                "Usage: ypst serve INPUT [--root DIR] [--fragment FRAGMENT]\n       ypst serve [--site-root DIR] [--port PORT]"
             );
             return Ok(0);
         }
         Some("--help") | Some("-h") if args.len() == 1 => {
             println!(
-                "Usage: ypst <compile|serve|stop|install> [OPTIONS]\n\ncompile INPUT [OUTPUT] [--site-root DIR] [-- TYPST_OPTIONS]\nserve INPUT [--root DIR] | --site-root DIR [--port PORT]\nstop\ninstall"
+                "Usage: ypst <compile|serve|stop|install> [OPTIONS]\n\ncompile INPUT [OUTPUT] [--site-root DIR] [-- TYPST_OPTIONS]\nserve INPUT [--root DIR] [--fragment FRAGMENT] | --site-root DIR [--port PORT]\nstop\ninstall"
             );
             return Ok(0);
         }

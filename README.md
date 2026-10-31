@@ -194,6 +194,6 @@ ypst serve --site-root _site --port 8765
 ypst stop
 ```
 
-`serve INPUT` compiles once into `<system temp>/lib-comrak-preview/<project>/typ` and prints only its preview URL to stdout on success. Compiler errors go to stderr, with short diagnostics mapped to the original source. It starts or reuses the native service on `127.0.0.1:8765`, shared with `comrak2`; both tools can stop that service. The browser reloads when the generated HTML changes. `serve` hosts an existing directory in the foreground. A service hosting another directory on the same port is not reused.
+`serve INPUT` compiles once into `<system temp>/lib-comrak-preview/<project>/typ` and prints only its preview URL to stdout on success. Compiler errors go to stderr, with short diagnostics mapped to the original source. It starts or reuses the native service on `127.0.0.1:8765`, shared with `comrak2`; both tools can stop that service. The browser reloads when the generated HTML changes. Pass `--fragment section` (with or without `#`) to navigate open preview pages to that URL fragment after a successful compilation via SSE. Failed compilations send no notification. `serve` hosts an existing directory in the foreground. A service hosting another directory on the same port is not reused.
 
-This follows tmcompiler's stream convention. The server uses HTTP revision polling rather than tmcompiler's SSE. Typst's human-format diagnostics are passed through and do not have temporary paths remapped.
+This follows tmcompiler's stream convention. The server uses SSE for compilation notifications and HTTP revision polling for other file changes. Typst's human-format diagnostics are passed through and do not have temporary paths remapped.
