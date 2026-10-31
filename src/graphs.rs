@@ -169,113 +169,130 @@ where
     let mut edits = Vec::new();
     let mut downloaded = std::collections::HashMap::<String, String>::new();
     for (index, (range, call)) in calls.into_iter().enumerate() {
-        let ast::Expr::Ident(name) = call.callee() else {
-            unreachable!()
+        let start = if range.start > 0 && source.as_bytes()[range.start - 1] == b'#' {
+            range.start - 1
+        } else {
+            range.start
         };
-        if name.as_str() == "image" {
-            let Some(ast::Expr::Str(value)) = call.args().items().find_map(|arg| match arg {
-                ast::Arg::Pos(value) => Some(value),
-                _ => None,
-            }) else {
-                continue;
+        let prefix = &source[..start];
+        let line = prefix.bytes().filter(|b| *b == b'\n').count() + 1;
+        let column = prefix.rsplit('\n').next().unwrap_or("").chars().count() + 1;
+        let result = (|| -> Result<(), String> {
+            let ast::Expr::Ident(name) = call.callee() else {
+                unreachable!()
             };
-            let remote = value.get();
-            let url =
-                url::Url::parse(remote.as_str()).map_err(|e| format!("invalid image URL: {e}"))?;
-            if !matches!(url.scheme(), "http" | "https") {
-                return Err("image URL must use HTTP or HTTPS".into());
+            if name.as_str() == "image" {
+                let Some(ast::Expr::Str(value)) = call.args().items().find_map(|arg| match arg {
+                    ast::Arg::Pos(value) => Some(value),
+                    _ => None,
+                }) else {
+                    return Ok(());
+                };
+                let remote = value.get();
+                let url = url::Url::parse(remote.as_str())
+                    .map_err(|e| format!("invalid image URL: {e}"))?;
+                if !matches!(url.scheme(), "http" | "https") {
+                    return Err("image URL must use HTTP or HTTPS".into());
+                }
+                let filename = if let Some(filename) = downloaded.get(url.as_str()) {
+                    filename.clone()
+                } else {
+                    let bytes = fetch(url.as_str())?;
+                    let ext = image_extension(&bytes)
+                        .ok_or_else(|| format!("image {remote}: unsupported image format"))?;
+                    let filename = format!("{index}.{ext}");
+                    fs::write(dir.path().join(&filename), bytes).map_err(|e| e.to_string())?;
+                    downloaded.insert(url.as_str().to_owned(), filename.clone());
+                    filename
+                };
+                let replacement = serde_json::to_string(&format!("{dir_name}/{filename}"))
+                    .map_err(|e| e.to_string())?;
+                let span =
+                    range_of(&linked, value.to_untyped()).ok_or("cannot locate image URL")?;
+                edits.push((span, replacement));
+                return Ok(());
             }
-            let filename = if let Some(filename) = downloaded.get(url.as_str()) {
-                filename.clone()
-            } else {
-                let bytes = fetch(url.as_str())?;
-                let ext = image_extension(&bytes)
-                    .ok_or_else(|| format!("image {remote}: unsupported image format"))?;
-                let filename = format!("{index}.{ext}");
-                fs::write(dir.path().join(&filename), bytes).map_err(|e| e.to_string())?;
-                downloaded.insert(url.as_str().to_owned(), filename.clone());
-                filename
-            };
-            let replacement = serde_json::to_string(&format!("{dir_name}/{filename}"))
-                .map_err(|e| e.to_string())?;
-            let span = range_of(&linked, value.to_untyped()).ok_or("cannot locate image URL")?;
-            edits.push((span, replacement));
-            continue;
-        }
-        let mut positional = Vec::new();
-        let mut width = None;
-        let mut caption = None;
-        for arg in call.args().items() {
-            match arg {
-                ast::Arg::Pos(value) => positional.push(value),
-                ast::Arg::Named(named) => {
-                    let r = range_of(&linked, named.expr().to_untyped())
-                        .ok_or("cannot locate graph argument")?;
-                    let value = &source[r];
-                    match named.name().as_str() {
-                        "width" if width.is_none() => width = Some(value),
-                        "caption" if caption.is_none() => caption = Some(value),
-                        other => {
-                            return Err(format!(
-                                "unsupported or duplicate graph argument: {other}"
-                            ));
+            let mut positional = Vec::new();
+            let mut width = None;
+            let mut caption = None;
+            for arg in call.args().items() {
+                match arg {
+                    ast::Arg::Pos(value) => positional.push(value),
+                    ast::Arg::Named(named) => {
+                        let r = range_of(&linked, named.expr().to_untyped())
+                            .ok_or("cannot locate graph argument")?;
+                        let value = &source[r];
+                        match named.name().as_str() {
+                            "width" if width.is_none() => width = Some(value),
+                            "caption" if caption.is_none() => caption = Some(value),
+                            other => {
+                                return Err(format!(
+                                    "unsupported or duplicate graph argument: {other}"
+                                ));
+                            }
                         }
                     }
+                    _ => return Err("graph arguments cannot use spreads".into()),
                 }
-                _ => return Err("graph arguments cannot use spreads".into()),
             }
-        }
-        if positional.len() != 1 {
-            return Err(format!("#{} expects one input", name.as_str()));
-        }
-        let svg = if name.as_str() == "chartist" {
-            let ast::Expr::Str(path) = positional[0] else {
-                return Err("#chartist expects a literal JS file path".into());
-            };
-            let relative = path.get();
-            let file = fs::canonicalize(source_path.parent().unwrap().join(relative.as_str()))
-                .map_err(|e| format!("chartist {relative}: {e}"))?;
-            if !file.starts_with(root) {
-                return Err("chartist file is outside --root".into());
+            if positional.len() != 1 {
+                return Err(format!("#{} expects one input", name.as_str()));
             }
-            let script = fs::read_to_string(&file).map_err(|e| e.to_string())?;
-            let markup = render_chart(&script)?;
-            let start = markup.find("<svg").ok_or("chartist must render an SVG")?;
-            let end = markup
-                .rfind("</svg>")
-                .ok_or("chartist returned invalid SVG")?
-                + 6;
-            markup[start..end].to_owned()
-        } else {
-            let graph = match positional[0] {
-                ast::Expr::Str(value) => value.get().to_string(),
-                ast::Expr::ContentBlock(block) => {
-                    raw_content(block.to_untyped()).ok_or("#mermaid expects a raw code block")?
+            let svg = if name.as_str() == "chartist" {
+                let ast::Expr::Str(path) = positional[0] else {
+                    return Err("#chartist expects a literal JS file path".into());
+                };
+                let relative = path.get();
+                let file = fs::canonicalize(source_path.parent().unwrap().join(relative.as_str()))
+                    .map_err(|e| format!("chartist {relative}: {e}"))?;
+                if !file.starts_with(root) {
+                    return Err("chartist file is outside --root".into());
                 }
-                ast::Expr::Raw(raw) => raw
-                    .lines()
-                    .map(|line| line.get().as_str())
-                    .collect::<Vec<_>>()
-                    .join("\n"),
-                _ => return Err("#mermaid expects a raw code block or string".into()),
+                let script = fs::read_to_string(&file).map_err(|e| e.to_string())?;
+                let markup = render_chart(&script)?;
+                let start = markup.find("<svg").ok_or("chartist must render an SVG")?;
+                let end = markup
+                    .rfind("</svg>")
+                    .ok_or("chartist returned invalid SVG")?
+                    + 6;
+                markup[start..end].to_owned()
+            } else {
+                let graph = match positional[0] {
+                    ast::Expr::Str(value) => value.get().to_string(),
+                    ast::Expr::ContentBlock(block) => raw_content(block.to_untyped())
+                        .ok_or("#mermaid expects a raw code block")?,
+                    ast::Expr::Raw(raw) => raw
+                        .lines()
+                        .map(|line| line.get().as_str())
+                        .collect::<Vec<_>>()
+                        .join("\n"),
+                    _ => return Err("#mermaid expects a raw code block or string".into()),
+                };
+                render_mermaid(&graph, index)?
             };
-            render_mermaid(&graph, index)?
-        };
-        let filename = format!("{index}.svg");
-        fs::write(dir.path().join(&filename), svg).map_err(|e| e.to_string())?;
-        let file =
-            serde_json::to_string(&format!("{dir_name}/{filename}")).map_err(|e| e.to_string())?;
-        let image = format!("image({file}, width: {})", width.unwrap_or("100%"));
-        let mut replacement = caption.map_or(image.clone(), |value| {
-            format!("figure({image}, caption: {value})")
-        });
-        let before = source[range.clone()]
-            .bytes()
-            .filter(|b| *b == b'\n')
-            .count();
-        let after = replacement.bytes().filter(|b| *b == b'\n').count();
-        replacement.push_str(&"\n".repeat(before.saturating_sub(after)));
-        edits.push((range, replacement));
+            let filename = format!("{index}.svg");
+            fs::write(dir.path().join(&filename), svg).map_err(|e| e.to_string())?;
+            let file = serde_json::to_string(&format!("{dir_name}/{filename}"))
+                .map_err(|e| e.to_string())?;
+            let image = format!("image({file}, width: {})", width.unwrap_or("100%"));
+            let mut replacement = caption.map_or(image.clone(), |value| {
+                format!("figure({image}, caption: {value})")
+            });
+            let before = source[range.clone()]
+                .bytes()
+                .filter(|b| *b == b'\n')
+                .count();
+            let after = replacement.bytes().filter(|b| *b == b'\n').count();
+            replacement.push_str(&"\n".repeat(before.saturating_sub(after)));
+            edits.push((range, replacement));
+            Ok(())
+        })();
+        result.map_err(|message| {
+            format!(
+                "{}:{line}:{column}: error: {message}",
+                source_path.display()
+            )
+        })?;
     }
     let mut output = source.to_owned();
     for (range, replacement) in edits.into_iter().rev() {
@@ -341,7 +358,9 @@ mod tests {
             &root,
             &mut fetch,
         );
-        assert!(result.unwrap_err().contains("unsupported image format"));
+        let error = result.unwrap_err();
+        assert!(error.contains("unsupported image format"));
+        assert!(error.starts_with(&format!("{}:1:1: error:", root.join("n.typ").display())));
     }
     #[test]
     fn leaves_plain_source_untouched() {

@@ -335,12 +335,133 @@ fn render_mermaid(html: &str) -> Result<String, String> {
     })
 }
 
+fn default_site_output(site: &Path, project_root: &Path, source: &Path) -> Result<PathBuf, String> {
+    let relative = source
+        .strip_prefix(project_root)
+        .map_err(|_| "source must be inside --root when output is omitted")?;
+    Ok(site.join(relative).with_extension(""))
+}
+
+struct CompileOptions {
+    pass: Vec<String>,
+    positional: Vec<String>,
+    site: Option<PathBuf>,
+    assets_url: Option<String>,
+}
+
+fn parse_compile_options(args: &[String]) -> Result<CompileOptions, String> {
+    let mut result = CompileOptions {
+        pass: Vec::new(),
+        positional: Vec::new(),
+        site: None,
+        assets_url: None,
+    };
+    let mut output = None;
+    let mut i = 0;
+    while i < args.len() {
+        let arg = &args[i];
+        if arg == "--" {
+            result.pass.extend_from_slice(&args[i + 1..]);
+            break;
+        }
+        let (flag, inline) = arg
+            .split_once('=')
+            .map_or((arg.as_str(), None), |(name, value)| (name, Some(value)));
+        if matches!(flag, "--site-root" | "--assets-url" | "--output" | "-o") {
+            let value = if let Some(value) = inline {
+                value.to_owned()
+            } else {
+                i += 1;
+                args.get(i)
+                    .ok_or_else(|| format!("{flag} requires a value"))?
+                    .clone()
+            };
+            if value.is_empty() {
+                return Err(format!("{flag} requires a value"));
+            }
+            match flag {
+                "--site-root" => result.site = Some(value.into()),
+                "--assets-url" => result.assets_url = Some(value),
+                _ => output = Some(value),
+            }
+        } else if arg.starts_with('-') {
+            result.pass.push(arg.clone());
+            if inline.is_none()
+                && matches!(
+                    flag,
+                    "--root"
+                        | "--input"
+                        | "--font-path"
+                        | "--package-path"
+                        | "--package-cache-path"
+                        | "--creation-timestamp"
+                        | "--pages"
+                        | "--pdf-standard"
+                        | "--ppi"
+                        | "--deps"
+                        | "--deps-format"
+                        | "--jobs"
+                        | "-j"
+                        | "--features"
+                        | "--diagnostic-format"
+                        | "--timings"
+                        | "--format"
+                        | "-f"
+                )
+            {
+                i += 1;
+                result.pass.push(
+                    args.get(i)
+                        .ok_or_else(|| format!("{flag} requires a value"))?
+                        .clone(),
+                );
+            }
+        } else {
+            result.positional.push(arg.clone());
+        }
+        i += 1;
+    }
+    if let Some(output) = output {
+        if result.positional.len() != 1 {
+            return Err("provide one input and one output".into());
+        }
+        result.positional.push(output);
+    }
+    Ok(result)
+}
+
 fn run() -> Result<i32, String> {
     let args: Vec<String> = env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         Some("preview") => return Err("unknown command preview; use serve".into()),
-        Some("serve") if args.get(1).is_some_and(|arg| !arg.starts_with('-')) => {
+        Some("serve")
+            if args.get(1).is_some_and(|arg| !arg.starts_with('-'))
+                || args
+                    .iter()
+                    .skip(1)
+                    .any(|arg| arg == "--root" || arg.starts_with("--root=")) =>
+        {
             site_preview::compile(args[1..].to_vec())?;
+            return Ok(0);
+        }
+        Some("serve")
+            if args
+                .get(1)
+                .is_some_and(|arg| arg == "--help" || arg == "-h") =>
+        {
+            println!(
+                "Usage: typst2 serve INPUT [--root DIR]\n       typst2 serve [--site-root DIR] [--port PORT]"
+            );
+            return Ok(0);
+        }
+        Some("--help") | Some("-h") if args.len() == 1 => {
+            println!(
+                "Usage: typst2 <compile|serve|stop|install> [OPTIONS]\n\ncompile INPUT [OUTPUT] [--site-root DIR] [-- TYPST_OPTIONS]\nserve INPUT [--root DIR] | --site-root DIR [--port PORT]\nstop\ninstall"
+            );
+            return Ok(0);
+        }
+        Some("--version") | Some("-V") if args.len() == 1 => {
+            println!("typst2 {}", env!("CARGO_PKG_VERSION"));
             return Ok(0);
         }
         Some("stop") if args.len() == 1 => {
@@ -372,6 +493,15 @@ fn run() -> Result<i32, String> {
         }
         _ => {}
     }
+    if args.first().is_some_and(|s| s == "compile")
+        && args.len() == 2
+        && matches!(args[1].as_str(), "--help" | "-h")
+    {
+        println!(
+            "Usage: typst2 compile [OPTIONS] INPUT [OUTPUT]\n\n  -o, --output PATH       Output path\n      --site-root DIR     Write a site bundle\n      --assets-url URL    Public URL for shared site styles\n      --root DIR          Typst project root\n  -f, --format FORMAT     Output format: html or pdf\n\nOther Typst compile options are forwarded; use -- to pass them through explicitly."
+        );
+        return Ok(0);
+    }
     if args.first().is_some_and(|s| s == "install") {
         if args.len() != 1 {
             return Err("usage: typst2 install".into());
@@ -399,38 +529,12 @@ fn run() -> Result<i32, String> {
             .map(|s| s.code().unwrap_or(1))
             .map_err(|e| e.to_string());
     }
-    let mut pass = Vec::new();
-    let mut positional = Vec::new();
-    let mut site = None;
-    let mut assets_url = None;
-    let mut i = 1;
-    while i < args.len() {
-        match args[i].as_str() {
-            "--site-root" | "--assets-url" => {
-                let key = args[i].clone();
-                i += 1;
-                let value = args
-                    .get(i)
-                    .ok_or(format!("{key} requires a value"))?
-                    .clone();
-                if key == "--site-root" {
-                    site = Some(PathBuf::from(value));
-                } else {
-                    assets_url = Some(value);
-                }
-            }
-            "--" => {
-                pass.extend_from_slice(&args[i + 1..]);
-                break;
-            }
-            s if s.starts_with('-') => {
-                pass.extend_from_slice(&args[i..]);
-                break;
-            }
-            _ => positional.push(args[i].clone()),
-        }
-        i += 1;
-    }
+    let CompileOptions {
+        pass,
+        positional,
+        site,
+        assets_url,
+    } = parse_compile_options(&args[1..])?;
     if positional.is_empty() {
         return Command::new("typst")
             .args(&args)
@@ -532,18 +636,14 @@ fn run() -> Result<i32, String> {
     }
     let cwd = env::current_dir().map_err(|e| e.to_string())?;
     let site = site.map(|p| if p.is_absolute() { p } else { cwd.join(p) });
-    let mut output =
-        if let Some(out) = positional.get(1) {
-            let p = PathBuf::from(out);
-            if p.is_absolute() { p } else { cwd.join(p) }
-        } else if let Some(root) = &site {
-            root.join(source.strip_prefix(&cwd).map_err(
-                |_| "source must be inside the current directory when output is omitted",
-            )?)
-            .with_extension("")
-        } else {
-            source.with_extension("html")
-        };
+    let mut output = if let Some(out) = positional.get(1) {
+        let p = PathBuf::from(out);
+        if p.is_absolute() { p } else { cwd.join(p) }
+    } else if let Some(root) = &site {
+        default_site_output(root, &project_root, &source)?
+    } else {
+        source.with_extension("html")
+    };
     if output == source || fs::canonicalize(&output).ok().as_ref() == Some(&source) {
         return Err("output must not overwrite source".into());
     }
@@ -681,11 +781,21 @@ fn run() -> Result<i32, String> {
     }
     Ok(0)
 }
+fn is_source_diagnostic(message: &str) -> bool {
+    regex::Regex::new(r"^.+:[0-9]+:[0-9]+: (?:error|warning):")
+        .unwrap()
+        .is_match(message)
+}
+
 fn main() -> ExitCode {
     match run() {
         Ok(code) => ExitCode::from(code.clamp(0, 255) as u8),
         Err(error) => {
-            eprintln!("typst2: {error}");
+            if is_source_diagnostic(&error) {
+                eprintln!("{error}");
+            } else {
+                eprintln!("typst2: {error}");
+            }
             ExitCode::FAILURE
         }
     }
@@ -763,6 +873,43 @@ mod tests {
         assert!(asset_url("file://host/path").is_err());
         assert!(asset_url("/static?x=1").is_err());
         assert_eq!(escape_relative_url("../a b/图"), "../a%20b/%E5%9B%BE");
+    }
+    #[test]
+    fn site_output_is_relative_to_project_root() {
+        let tmp = tempfile::tempdir().unwrap();
+        let project = tmp.path().join("project");
+        let source = project.join("nested/note.typ");
+        let site = tmp.path().join("site");
+        assert_eq!(
+            default_site_output(&site, &project, &source).unwrap(),
+            site.join("nested/note")
+        );
+        assert!(default_site_output(&site, &project, &tmp.path().join("elsewhere.typ")).is_err());
+    }
+    #[test]
+    fn source_diagnostics_remain_parseable() {
+        assert!(super::is_source_diagnostic(
+            "C:\\notes\\a.typ:12:3: error: invalid"
+        ));
+        assert!(!super::is_source_diagnostic("cannot start server"));
+    }
+    #[test]
+    fn compile_options_accept_typst_and_site_flags_before_or_after_input() {
+        for args in [
+            vec!["--root", "/project", "note.typ", "--site-root", "_site"],
+            vec!["note.typ", "--site-root=_site", "--root=/project"],
+        ] {
+            let parsed =
+                parse_compile_options(&args.into_iter().map(str::to_owned).collect::<Vec<_>>())
+                    .unwrap();
+            assert_eq!(parsed.positional, ["note.typ"]);
+            assert_eq!(parsed.site, Some(PathBuf::from("_site")));
+            assert!(parsed.pass.iter().any(|arg| arg.starts_with("--root")));
+        }
+        let args = ["-o", "out.pdf", "--format", "pdf", "note.typ"].map(str::to_owned);
+        let parsed = parse_compile_options(&args).unwrap();
+        assert_eq!(parsed.positional, ["note.typ", "out.pdf"]);
+        assert_eq!(parsed.pass, ["--format", "pdf"]);
     }
     #[test]
     fn site_images_are_shared_and_script_text_is_preserved() {

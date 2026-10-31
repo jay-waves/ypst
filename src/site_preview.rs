@@ -60,7 +60,7 @@ fn healthy(root: &Path) -> bool {
     value["service"] == SERVICE
         && value["root"]
             .as_str()
-            .is_some_and(|path| fs::canonicalize(path).ok() == fs::canonicalize(root).ok())
+            .is_some_and(|path| dunce::canonicalize(path).ok() == dunce::canonicalize(root).ok())
 }
 
 fn ensure_server(root: &Path) -> Result<(), String> {
@@ -117,9 +117,9 @@ pub fn compile(values: Vec<String>) -> Result<(), String> {
         }
         i += 1;
     }
-    let root = fs::canonicalize(root).map_err(|e| e.to_string())?;
+    let root = dunce::canonicalize(root).map_err(|e| e.to_string())?;
     let input =
-        fs::canonicalize(input.ok_or("serve requires an input")?).map_err(|e| e.to_string())?;
+        dunce::canonicalize(input.ok_or("serve requires an input")?).map_err(|e| e.to_string())?;
     let relative = input
         .strip_prefix(&root)
         .map_err(|_| "input must be inside --root")?;
@@ -173,8 +173,13 @@ pub fn stop() -> Result<(), String> {
 
 pub fn serve(root: &Path, port: u16) -> Result<(), String> {
     fs::create_dir_all(root).map_err(|e| e.to_string())?;
-    let root = fs::canonicalize(root).map_err(|e| e.to_string())?;
+    let root = dunce::canonicalize(root).map_err(|e| e.to_string())?;
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, port)).map_err(|e| e.to_string())?;
+    eprintln!(
+        "Preview: http://{}/\nDirectory: {}",
+        listener.local_addr().map_err(|e| e.to_string())?,
+        root.display()
+    );
     for stream in listener.incoming() {
         let stream = stream.map_err(|e| e.to_string())?;
         let root = root.clone();
@@ -196,7 +201,7 @@ fn safe_file(root: &Path, target: &str) -> Option<PathBuf> {
     if file.is_dir() {
         file.push("index.html");
     }
-    let file = fs::canonicalize(file).ok()?;
+    let file = dunce::canonicalize(file).ok()?;
     (file.starts_with(root) && file.is_file()).then_some(file)
 }
 
@@ -302,7 +307,7 @@ mod tests {
     #[test]
     fn file_routes_stay_under_root() {
         let dir = tempfile::tempdir().unwrap();
-        let root = fs::canonicalize(dir.path()).unwrap();
+        let root = dunce::canonicalize(dir.path()).unwrap();
         fs::create_dir(root.join("nested")).unwrap();
         fs::write(root.join("nested/index.html"), "hello").unwrap();
         assert_eq!(

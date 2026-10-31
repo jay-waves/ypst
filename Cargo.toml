@@ -6,6 +6,7 @@ rust-version = "1.92"
 
 [dependencies]
 regex = "1"
+dunce = "1"
 base64 = "0.22"
 ureq = "3.4.2"
 typst-syntax = "0.15.1"
