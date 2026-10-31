@@ -16,7 +16,7 @@
 /// - `theorem` / `lemma` / `corollary`: theorem, lemma, and corollary environments.
 /// - `definition` / `proof`: definition and proof environments.
 ///
-/// HTML export: `typst2 compile path/to/note.typ note.html` from the checkout.
+/// HTML export: `ypst compile path/to/note.typ note.html` from the checkout.
 /// The recommended interfaces are listed above; other top-level names remain importable.
 
 #import "@preview/headcount:0.1.1": dependent-numbering, reset-counter

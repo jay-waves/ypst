@@ -1,5 +1,5 @@
 name: Set up ypst-template
-description: Install Typst, typst2, and the local ypst-template package.
+description: Install Typst, ypst, and the local ypst-template package.
 runs:
   using: composite
   steps:
@@ -8,29 +8,29 @@ runs:
       with:
         typst-version: 0.15.0
 
-    - name: Download and install typst2
+    - name: Download and install ypst
       shell: pwsh
       env:
         GH_TOKEN: ${{ github.token }}
-        TYPST2_REPOSITORY: ${{ github.action_repository || github.repository }}
+        YPST_REPOSITORY: ${{ github.action_repository || github.repository }}
       run: |
         if ($env:RUNNER_ARCH -ne 'X64') {
-          throw "typst2 release 0.1.0 supports x64 runners only; found $env:RUNNER_ARCH"
+          throw "ypst release 0.1.0 supports x64 runners only; found $env:RUNNER_ARCH"
         }
         switch ($env:RUNNER_OS) {
-          'Linux' { $asset = 'typst2-linux-x64'; $binary = 'typst2' }
-          'Windows' { $asset = 'typst2-windows-x64.exe'; $binary = 'typst2.exe' }
-          default { throw "typst2 release 0.1.0 does not support $env:RUNNER_OS" }
+          'Linux' { $asset = 'ypst-linux-x64'; $binary = 'ypst' }
+          'Windows' { $asset = 'ypst-windows-x64.exe'; $binary = 'ypst.exe' }
+          default { throw "ypst release 0.1.0 does not support $env:RUNNER_OS" }
         }
         $directory = Join-Path $env:RUNNER_TEMP 'ypst-template-bin'
         New-Item -ItemType Directory -Force -Path $directory | Out-Null
-        gh release download 0.1.0 --repo $env:TYPST2_REPOSITORY --pattern $asset --dir $directory --clobber
-        if ($LASTEXITCODE -ne 0) { throw 'Failed to download typst2 0.1.0' }
+        gh release download 0.1.0 --repo $env:YPST_REPOSITORY --pattern $asset --dir $directory --clobber
+        if ($LASTEXITCODE -ne 0) { throw 'Failed to download ypst 0.1.0' }
         $executable = Join-Path $directory $binary
         if ($asset -ne $binary) { Move-Item -Force (Join-Path $directory $asset) $executable }
         if ($env:RUNNER_OS -eq 'Linux') {
           chmod +x $executable
-          if ($LASTEXITCODE -ne 0) { throw 'Failed to mark typst2 executable' }
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to mark ypst executable' }
         }
         & $executable install
         if ($LASTEXITCODE -ne 0) { throw 'Failed to install ypst-template' }

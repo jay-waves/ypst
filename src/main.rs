@@ -450,18 +450,18 @@ fn run() -> Result<i32, String> {
                 .is_some_and(|arg| arg == "--help" || arg == "-h") =>
         {
             println!(
-                "Usage: typst2 serve INPUT [--root DIR]\n       typst2 serve [--site-root DIR] [--port PORT]"
+                "Usage: ypst serve INPUT [--root DIR]\n       ypst serve [--site-root DIR] [--port PORT]"
             );
             return Ok(0);
         }
         Some("--help") | Some("-h") if args.len() == 1 => {
             println!(
-                "Usage: typst2 <compile|serve|stop|install> [OPTIONS]\n\ncompile INPUT [OUTPUT] [--site-root DIR] [-- TYPST_OPTIONS]\nserve INPUT [--root DIR] | --site-root DIR [--port PORT]\nstop\ninstall"
+                "Usage: ypst <compile|serve|stop|install> [OPTIONS]\n\ncompile INPUT [OUTPUT] [--site-root DIR] [-- TYPST_OPTIONS]\nserve INPUT [--root DIR] | --site-root DIR [--port PORT]\nstop\ninstall"
             );
             return Ok(0);
         }
         Some("--version") | Some("-V") if args.len() == 1 => {
-            println!("typst2 {}", env!("CARGO_PKG_VERSION"));
+            println!("ypst {}", env!("CARGO_PKG_VERSION"));
             return Ok(0);
         }
         Some("stop") if args.len() == 1 => {
@@ -498,13 +498,13 @@ fn run() -> Result<i32, String> {
         && matches!(args[1].as_str(), "--help" | "-h")
     {
         println!(
-            "Usage: typst2 compile [OPTIONS] INPUT [OUTPUT]\n\n  -o, --output PATH       Output path\n      --site-root DIR     Write a site bundle\n      --assets-url URL    Public URL for shared site styles\n      --root DIR          Typst project root\n  -f, --format FORMAT     Output format: html or pdf\n\nOther Typst compile options are forwarded; use -- to pass them through explicitly."
+            "Usage: ypst compile [OPTIONS] INPUT [OUTPUT]\n\n  -o, --output PATH       Output path\n      --site-root DIR     Write a site bundle\n      --assets-url URL    Public URL for shared site styles\n      --root DIR          Typst project root\n  -f, --format FORMAT     Output format: html or pdf\n\nOther Typst compile options are forwarded; use -- to pass them through explicitly."
         );
         return Ok(0);
     }
     if args.first().is_some_and(|s| s == "install") {
         if args.len() != 1 {
-            return Err("usage: typst2 install".into());
+            return Err("usage: ypst install".into());
         }
         let target = package_directory(
             env::consts::OS,
@@ -632,7 +632,7 @@ fn run() -> Result<i32, String> {
         .map(|s| s.code().unwrap_or(1));
     }
     if format_opt.as_deref().is_some_and(|f| f != "html") {
-        return Err("typst2 HTML mode supports --format html or pdf".into());
+        return Err("ypst HTML mode supports --format html or pdf".into());
     }
     let cwd = env::current_dir().map_err(|e| e.to_string())?;
     let site = site.map(|p| if p.is_absolute() { p } else { cwd.join(p) });
@@ -787,14 +787,22 @@ fn is_source_diagnostic(message: &str) -> bool {
         .is_match(message)
 }
 
+fn normalized_exit(code: i32) -> ExitCode {
+    if code == 0 {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    }
+}
+
 fn main() -> ExitCode {
     match run() {
-        Ok(code) => ExitCode::from(code.clamp(0, 255) as u8),
+        Ok(code) => normalized_exit(code),
         Err(error) => {
             if is_source_diagnostic(&error) {
                 eprintln!("{error}");
             } else {
-                eprintln!("typst2: {error}");
+                eprintln!("ypst: {error}");
             }
             ExitCode::FAILURE
         }
@@ -804,6 +812,13 @@ fn main() -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn child_exit_codes_follow_public_contract() {
+        assert_eq!(normalized_exit(0), ExitCode::SUCCESS);
+        assert_eq!(normalized_exit(1), ExitCode::FAILURE);
+        assert_eq!(normalized_exit(2), ExitCode::FAILURE);
+        assert_eq!(normalized_exit(42), ExitCode::FAILURE);
+    }
     #[test]
     fn renders_mermaid_to_svg_without_browser_javascript() {
         let input =
