@@ -99,7 +99,9 @@ flowchart LR
 ]
 ````
 
-`#chartist` takes a literal path relative to the source file. The JS file must be inside `--root`, import only `chartist` and `chartist/server`, and synchronously render an SVG in its default export; see `examples/chart.js`. `#mermaid` accepts a raw code block or literal string. Both arguments are optional; `caption` uses Typst content and `width` accepts Typst lengths. These are preprocessing directives available through `ypst`, not ordinary Typst functions; preprocessing currently covers the main input file. Output is static and does not run `hydrate`. Pele supports a subset of Mermaid syntax.
+For HTML, `ypst compile` pre-renders static code blocks with highlight.js. Unknown or missing languages remain plain text; PDF keeps Typst highlighting. Preprocessing recursively follows literal local `#include` and `#import` paths within `--root`, reuses repeated references, and rejects cycles. Package imports and computed paths are left to Typst and are not preprocessed. Changed files use temporary sibling copies so relative image paths retain their meaning; source directories must be writable. Original files are not modified. Direct `typst compile` does not run this step.
+
+`#chartist` takes a literal path relative to the source file. The JS file must be inside `--root`, import only `chartist` and `chartist/server`, and synchronously render an SVG in its default export; see `examples/chart.js`. `#mermaid` accepts a raw code block or literal string. Both arguments are optional; `caption` uses Typst content and `width` accepts Typst lengths. These are preprocessing directives available through `ypst`, not ordinary Typst functions; preprocessing covers the entry and its literal local include/import dependencies. Output is static and does not run `hydrate`. Pele supports a subset of Mermaid syntax.
 
 Chartist defaults are defined in `chartist.css` and applied to generated SVG, including PDF and site images. Chartist does not create axis titles automatically; custom titles can use `ct-axis-title-x` (horizontal) and `ct-axis-title-y` (vertical). Tick labels remain horizontal.
 
@@ -115,7 +117,7 @@ ypst compile note.typ                 # writes note.html
 ypst compile note.typ output.html     # choose an output file
 ```
 
-The output embeds the theme, scripts, and images. Literal HTTP(S) URLs are supported in `#image("https://example.com/image.png")`: `ypst` downloads them before compilation, with a 15-second timeout and 10 MiB response limit. The same URL is fetched once per compilation; later compilations fetch it again. PDF uses the downloaded file and standalone HTML embeds the image. Supported downloads are PNG, JPEG, GIF, WebP, SVG, and PDF images. Like the graph directives, URL preprocessing currently covers the main input file. The Rust wrapper currently does not perform the legacy equation SVG optimization or document-setting precheck. Place `#set document(...)`
+The output embeds the theme, scripts, and images. Literal HTTP(S) URLs are supported in `#image("https://example.com/image.png")`: `ypst` downloads them before compilation, with a 15-second timeout and 10 MiB response limit. The same URL is fetched once per compilation; later compilations fetch it again. PDF uses the downloaded file and standalone HTML embeds the image. Supported downloads are PNG, JPEG, GIF, WebP, SVG, and PDF images. Like the graph directives, URL preprocessing covers the entry and its literal local include/import dependencies. The Rust wrapper currently does not perform the legacy equation SVG optimization or document-setting precheck. Place `#set document(...)`
 before `#show: template`. Pass Typst options after `--`, for example
 `-- --root . --diagnostic-format human`. Site mode uses a temporary entry. Short-format diagnostics (the default) map its source locations back to the original file; human-format diagnostics retain Typst’s temporary entry locations.
 

@@ -44,3 +44,9 @@ project = "https://ctan.org/pkg/newcomputermodern"
 download_script = "fonts/download-georgia.py"
 source = "https://downloads.sourceforge.net/project/corefonts/the%20fonts/final/georgi32.exe"
 license_url = "https://corefonts.sourceforge.net/eula.htm"
+
+[tool.ypst-template.assets.highlight-js]
+version = "11.11.1"
+files = ["vendor/highlight.js", "vendor/raw-highlight.mjs", "html/highlight.css"]
+license = "vendor/highlight.js-LICENSE"
+source = "https://github.com/highlightjs/highlight.js"

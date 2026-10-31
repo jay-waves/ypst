@@ -1,4 +1,5 @@
 mod graphs;
+mod preprocess;
 mod site_preview;
 use regex::Regex;
 use rquickjs::{CatchResultExt, Context, Function, Runtime};
@@ -11,6 +12,7 @@ use std::{
 };
 
 const THEME: &str = include_str!("../html/theme.css");
+const HIGHLIGHT_CSS: &str = include_str!("../html/highlight.css");
 const FOOTNOTES: &str = include_str!("../html/footnotes.css");
 const HEADINGS: &str = include_str!("../html/headings.css");
 const MERMAID_CSS: &str = include_str!("../html/mermaid.css");
@@ -21,6 +23,7 @@ const PACKAGE_FILES: &[(&str, &str)] = &[
     ("lib.typ", include_str!("../lib.typ")),
     ("html/html.typ", include_str!("../html/html.typ")),
     ("html/theme.css", THEME),
+    ("html/highlight.css", HIGHLIGHT_CSS),
     ("html/footnotes.css", FOOTNOTES),
     ("html/headings.css", HEADINGS),
     ("html/mermaid.css", MERMAID_CSS),
@@ -167,7 +170,7 @@ fn run_compiler(
 }
 
 fn shared_assets(root: &Path) -> Result<PathBuf, String> {
-    let css = [THEME, FOOTNOTES, HEADINGS, MERMAID_CSS].join("\n");
+    let css = [THEME, HIGHLIGHT_CSS, FOOTNOTES, HEADINGS, MERMAID_CSS].join("\n");
     let js = format!(
         "(() => {{\n{}\n{}\n{}\n{}\n}})();\n",
         include_str!("../html/links.js"),
@@ -578,28 +581,29 @@ fn run() -> Result<i32, String> {
     if !source.starts_with(&project_root) {
         return Err("source is outside --root".into());
     }
-    let (processed, _graph_files) = std::thread::scope(|scope| {
-        std::thread::Builder::new()
-            .name("typst-graphs".into())
-            .stack_size(16 * 1024 * 1024)
-            .spawn_scoped(scope, || {
-                graphs::preprocess(&source_text, &source, &project_root)
-            })
-            .map_err(|e| e.to_string())?
-            .join()
-            .map_err(|_| "graph renderer thread failed".to_string())?
-    })?;
     let pdf = format_opt.as_deref() == Some("pdf")
         || (format_opt.is_none()
             && positional
                 .get(1)
                 .is_some_and(|s| s.to_ascii_lowercase().ends_with(".pdf")));
+    let prepared = std::thread::scope(|scope| {
+        std::thread::Builder::new()
+            .name("typst-preprocess".into())
+            .stack_size(16 * 1024 * 1024)
+            .spawn_scoped(scope, || {
+                preprocess::Prepared::new(&source, &project_root, !pdf)
+            })
+            .map_err(|e| e.to_string())?
+            .join()
+            .map_err(|_| "preprocessor thread failed".to_string())?
+    })?;
+    let processed = &prepared.text;
     if pdf {
         if site.is_some() {
             return Err("--site-root is only supported for HTML".into());
         }
         let mut entry = None;
-        if processed != source_text {
+        if processed != &source_text {
             let mut temp = tempfile::Builder::new()
                 .prefix(".typst-graphs-entry-")
                 .suffix(".typ")
@@ -621,15 +625,15 @@ fn run() -> Result<i32, String> {
             cmd.args(["--diagnostic-format", "short"]);
         }
         cmd.args(&pass);
-        return run_compiler(
+        let status = run_compiler(
             &mut cmd,
             entry.as_ref().map(|e| e.path()),
             &positional[0],
             source_lines,
             0,
             &pass,
-        )
-        .map(|s| s.code().unwrap_or(1));
+        )?;
+        return Ok(status.code().unwrap_or(1));
     }
     if format_opt.as_deref().is_some_and(|f| f != "html") {
         return Err("ypst HTML mode supports --format html or pdf".into());
@@ -664,14 +668,6 @@ fn run() -> Result<i32, String> {
         if shared.starts_with(&absolute_output) {
             return Err("bundle output must not contain the shared assets directory".into());
         }
-    }
-    if pass.iter().any(|x| {
-        x == "--deps"
-            || x == "--deps-format"
-            || x.starts_with("--deps=")
-            || x.starts_with("--deps-format=")
-    }) {
-        return Err("dependency output is managed by the wrapper".into());
     }
     let target = if site.is_some() {
         output.join("index.html")
@@ -711,7 +707,7 @@ fn run() -> Result<i32, String> {
         ]);
         entry = Some(temp);
     } else {
-        if processed != source_text {
+        if processed != &source_text {
             let mut temp = tempfile::Builder::new()
                 .prefix(".typst-graphs-entry-")
                 .suffix(".typ")

@@ -7,9 +7,9 @@
     } else {
         block(html.div(class: "sidenote", [
             #html.div(class: "sidenote-body", body)
-            #html.elem("details", attrs: ("class": "sidenote-toggle"), [
-                #html.elem("summary", html.elem("sup", "※"))
-                #html.elem("aside", attrs: (role: "note", class: "sidenote-panel"), [
+            #html.details(class: "sidenote-toggle", [
+                #html.summary(html.sup("※"))
+                #html.aside(role: "note", class: "sidenote-panel", [
                     #html.div(class: "note-content", aside)
                 ])
             ])
@@ -21,11 +21,9 @@
 #let template(theme: "light", body) = {
     // HTML follows the browser; the public theme parameter controls PDF only.
     let theme = "auto"
-    // Heading and footnote formats are supplied by the public template.
-    // Keep the native counter and reference target; only move the visible number.
+    // Keep display equations as SVG for consistent typography.
     show math.equation.where(block: true): it => context {
         set text(fill: rgb("#363733"))
-        // Frame only the math body, never the original numbered element.
         let formula = html.frame(math.equation(math.display(it.body), block: false, numbering: none))
         html.div(class: "display-equation", [
             #formula
@@ -74,15 +72,15 @@
     if bundled {
         html.elem("link", attrs: (rel: "stylesheet", href: assets + "theme.css", "data-theme": theme))
     } else {
-        html.elem("style", attrs: ("data-theme": theme), read("theme.css") + "\n" + read("footnotes.css") + "\n" + read("headings.css"))
+        html.elem("style", attrs: ("data-theme": theme), read("theme.css") + "\n" + read("highlight.css") + "\n" + read("footnotes.css") + "\n" + read("headings.css"))
     }
     block(html.div(class: "typst-document", body))
     if bundled {
-        html.elem("script", attrs: (src: assets + "theme.js"))
+        html.script(src: assets + "theme.js")
     } else {
-        html.elem("script", "(() => {\n" + read("links.js") + "\n" + read("footnotes.js") + "\n" + read("headings.js") + "\n" + read("line_navigation.js") + "\n})();")
+        html.script("(() => {\n" + read("links.js") + "\n" + read("footnotes.js") + "\n" + read("headings.js") + "\n" + read("line_navigation.js") + "\n})();")
     }
     if not bundled {
-        html.elem("style", read("mermaid.css"))
+        html.style(read("mermaid.css"))
     }
 }

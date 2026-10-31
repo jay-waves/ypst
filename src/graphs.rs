@@ -5,7 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 use typst_syntax::{
-    LinkedNode, SyntaxNode,
+    LinkedNode, Source, SyntaxNode,
     ast::{self, AstNode},
 };
 
@@ -16,10 +16,7 @@ const CSS: &str = include_str!("../vendor/chartist.css");
 const CHART_STYLE: &str = include_str!("../chartist.css");
 
 fn range_of(root: &LinkedNode<'_>, wanted: &SyntaxNode) -> Option<std::ops::Range<usize>> {
-    if std::ptr::eq(root.get(), wanted) {
-        return Some(root.range());
-    }
-    root.children().find_map(|child| range_of(&child, wanted))
+    root.find(wanted.span()).map(|node| node.range())
 }
 fn raw_content(node: &SyntaxNode) -> Option<String> {
     if let Some(raw) = node.cast::<ast::Raw>() {
@@ -82,6 +79,63 @@ fn render_mermaid(source: &str, index: usize) -> Result<String, String> {
     })
 }
 
+/// Highlight literal block raw nodes in the main source before HTML compilation.
+pub fn highlight_code(source: &str) -> Result<String, String> {
+    let parsed = Source::detached(source);
+    let linked = LinkedNode::new(parsed.root());
+    let mut blocks = Vec::new();
+    fn visit(node: &LinkedNode<'_>, blocks: &mut Vec<(std::ops::Range<usize>, String, String)>) {
+        if let Some(raw) = node.get().cast::<ast::Raw>() {
+            if raw.block()
+                && node
+                    .parent()
+                    .is_some_and(|p| p.kind() == typst_syntax::SyntaxKind::Markup)
+            {
+                blocks.push((
+                    node.range(),
+                    raw.lines()
+                        .map(|line| line.get().as_str())
+                        .collect::<Vec<_>>()
+                        .join("\n"),
+                    raw.lang().map_or("", |lang| lang.get().as_str()).to_owned(),
+                ));
+            }
+            return;
+        }
+        for child in node.children() {
+            visit(&child, blocks);
+        }
+    }
+    visit(&linked, &mut blocks);
+    if blocks.is_empty() {
+        return Ok(source.to_owned());
+    }
+    let runtime = Runtime::new().map_err(|e| e.to_string())?;
+    runtime.set_memory_limit(256 * 1024 * 1024);
+    runtime.set_max_stack_size(4 * 1024 * 1024);
+    let deadline = Instant::now() + Duration::from_secs(10);
+    runtime.set_interrupt_handler(Some(Box::new(move || Instant::now() >= deadline)));
+    let context = Context::full(&runtime).map_err(|e| e.to_string())?;
+    context.with(|ctx| {
+        let result = (|| -> rquickjs::Result<String> {
+            ctx.eval::<(), _>(include_str!("../vendor/highlight.js"))?;
+            let render: Function = ctx.globals().get("highlightTypst")?;
+            let mut output = source.to_owned();
+            for (range, text, language) in blocks.into_iter().rev() {
+                let mut replacement: String = render.call((text, language))?;
+                let before = source[range.clone()]
+                    .bytes()
+                    .filter(|b| *b == b'\n')
+                    .count();
+                replacement.push_str(&"\n".repeat(before));
+                output.replace_range(range, &replacement);
+            }
+            Ok(output)
+        })();
+        result.catch(&ctx).map_err(|e| format!("highlight.js: {e}"))
+    })
+}
+
 fn image_extension(bytes: &[u8]) -> Option<&'static str> {
     if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
         Some("png")
@@ -135,8 +189,8 @@ fn preprocess_with_fetch<F>(
 where
     F: FnMut(&str) -> Result<Vec<u8>, String>,
 {
-    let tree = typst_syntax::parse(source);
-    let linked = LinkedNode::new(&tree);
+    let parsed = Source::detached(source);
+    let linked = LinkedNode::new(parsed.root());
     let mut calls = Vec::new();
     fn visit<'a>(
         node: &LinkedNode<'a>,
@@ -361,6 +415,24 @@ mod tests {
         let error = result.unwrap_err();
         assert!(error.contains("unsupported image format"));
         assert!(error.starts_with(&format!("{}:1:1: error:", root.join("n.typ").display())));
+    }
+    #[test]
+    fn highlights_static_blocks_and_preserves_plain_text() {
+        std::thread::Builder::new()
+            .stack_size(16 * 1024 * 1024)
+            .spawn(|| {
+                let source =
+                    "```js\nconst x = \"<tag>\";\n```\n\n```unknown\na < b & c\n```\n`inline`";
+                let output = highlight_code(source).unwrap();
+                assert!(output.contains("hljs-keyword"));
+                assert!(output.contains(r#"#text("<")#text("tag")#text(">")"#));
+                assert!(output.contains("a < b & c"));
+                assert!(output.contains("`inline`"));
+                assert_eq!(source.lines().count(), output.lines().count());
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
     #[test]
     fn leaves_plain_source_untouched() {
