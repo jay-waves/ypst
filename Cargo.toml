@@ -23,3 +23,6 @@ sha2 = "0.10"
 url = "2"
 
 [workspace]
+
+[profile.release]
+strip = "symbols"

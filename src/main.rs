@@ -843,6 +843,7 @@ mod tests {
         install_package(&target).unwrap();
     }
     #[test]
+    #[cfg(not(windows))]
     fn package_path_respects_xdg_and_fixed_version() {
         let path = package_directory("linux", None, Some("relative"), Some("/home/test")).unwrap();
         assert_eq!(
@@ -852,6 +853,15 @@ mod tests {
         assert_eq!(
             package_directory("linux", None, Some("/data"), Some("/home/test")).unwrap(),
             PathBuf::from("/data/typst/packages/local/ypst-template/0.1.0")
+        );
+    }
+    #[test]
+    fn package_path_respects_windows_appdata_and_fixed_version() {
+        let appdata = std::env::temp_dir().join("ypst-test-appdata");
+        let path = package_directory("windows", appdata.to_str(), None, None).unwrap();
+        assert_eq!(
+            path,
+            appdata.join("typst/packages/local/ypst-template/0.1.0")
         );
     }
     #[test]

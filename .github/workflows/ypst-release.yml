@@ -37,7 +37,7 @@ jobs:
       - run: cargo fmt --check
       - run: cargo test --release --locked
       - run: cargo clippy --release --locked --all-targets -- -D warnings
-      - run: cargo build --release --locked
+      - run: cargo build --release --locked --bin ypst
       - name: Prepare release binary
         shell: bash
         run: |
