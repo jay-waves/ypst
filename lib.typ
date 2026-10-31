@@ -3,7 +3,7 @@
 /// Common imports and usage (adjust the path relative to your document):
 /// ```typst
 /// #import "../appx/theme.typ": template, sidenote, theorem, lemma, corollary,
-///   definition, proof, fletcher, diagram, node, edge
+///   definition, proof
 /// #set document(title: "Notes", keywords: ("robotics",))
 /// #show: template.with(theme: "light", layout: "portrait")
 /// ```
@@ -15,14 +15,11 @@
 /// - `footnote(body)`: a native PDF footnote and an inline HTML disclosure.
 /// - `theorem` / `lemma` / `corollary`: theorem, lemma, and corollary environments.
 /// - `definition` / `proof`: definition and proof environments.
-/// - `diagram(..args)`: theme-aware Fletcher diagrams with the native API.
-/// - `fletcher` / `node` / `edge`: the Fletcher module and native primitives.
 ///
-/// HTML export: `python typst.py compile path/to/note.typ note.html` from the checkout.
+/// HTML export: `typst2 compile path/to/note.typ note.html` from the checkout.
 /// The recommended interfaces are listed above; other top-level names remain importable.
 
 #import "@preview/headcount:0.1.1": dependent-numbering, reset-counter
-#import "@preview/fletcher:0.5.8" as fletcher
 #import "html/html.typ" as _html
 
 #assert(
@@ -135,30 +132,6 @@
     } else {
         _script_text(profile.latin, bold, body)
     }
-}
-
-// Re-export Fletcher's node and edge primitives unchanged.
-#let node = fletcher.node
-#let edge = fletcher.edge
-
-/// Fletcher's native diagram interface with theme-aware defaults.
-/// Explicit call-site options override the injected defaults.
-#let diagram(..args) = context {
-    let palette = _palette(_theme.get())
-    align(center, {
-        set text(
-            font: _typography.body.latin.font,
-            size: _font_size.tiny,
-            fill: palette.fg,
-        )
-
-        fletcher.diagram.with(
-            spacing: 3em,
-            node-fill: palette.pre-bg,
-            node-stroke: 0.5pt + palette.border,
-            edge-stroke: 0.55pt + palette.muted,
-        )(..args)
-    })
 }
 
 #let _sidenote_content(content) = {

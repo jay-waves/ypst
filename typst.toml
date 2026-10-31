@@ -4,7 +4,7 @@ version = "0.1.0"
 entrypoint = "lib.typ"
 authors = ["Jay Waves"]
 license = "MIT"
-description = "A document theme with CJK typography, theorem helpers, diagrams, and HTML sidenotes."
+description = "A document theme with CJK typography, theorem helpers and HTML sidenotes."
 compiler = "0.15.0"
 
 # Checkout asset inventory. Font versions come from the embedded metadata.

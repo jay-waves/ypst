@@ -1,7 +1,7 @@
 // Compile from the repository root with --root .; see README.md.
 #import "../lib.typ": (
   template, front-matter, sidenote, definition, theorem,
-  lemma, corollary, proof, diagram, node, edge,
+  lemma, corollary, proof,
 )
 #set document(title: "Template components / 模板用法")
 #show: template.with(layout: sys.inputs.at("layout", default: "portrait"))
@@ -70,19 +70,6 @@ Equation @model describes an affine model.
 
 See @signal and @parameters. Figure and equation numbering follow the output
 target's conventions.
-
-== Fletcher diagram
-
-#let flow = diagram(
-  node((0, 0), [$x$], name: <input>),
-  node((1, 0), [$A x + b$], name: <process>),
-  node((2, 0), [$y$], name: <output>),
-  edge(<input>, <process>, "->"),
-  edge(<process>, <output>, "->"),
-)
-
-// The bundled Fletcher version needs an SVG frame for HTML export.
-#context if target() == "html" { html.frame(flow) } else { flow }
 
 == Code and quotation
 

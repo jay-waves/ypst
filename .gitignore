@@ -1,9 +1,12 @@
 __pycache__/
 *.pyc
-# Georgia is installed locally and must not be committed or redistributed.
+# Keep locally downloaded and extracted Georgia files out of Git.
 fonts/[Gg]eorgia*/
 fonts/[Gg]eorgia*.ttf
 fonts/georgi32.exe
 
 # Local validation fixtures and browser regression checks.
 /tests/
+
+/target/
+/node_modules/

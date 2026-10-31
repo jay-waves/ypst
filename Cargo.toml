@@ -1,0 +1,20 @@
+[package]
+name = "typst2"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.92"
+
+[dependencies]
+regex = "1"
+base64 = "0.22"
+ureq = "3.4.2"
+typst-syntax = "0.15.1"
+serde_json = "1"
+mime_guess = "2"
+rquickjs = { version = "0.14", default-features = false, features = ["std"] }
+quick-xml = { version = "0.42", features = ["escape-html"] }
+tempfile = "3"
+sha2 = "0.10"
+url = "2"
+
+[workspace]

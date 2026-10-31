@@ -3,8 +3,7 @@
     "prefix": "doc",
     "body": [
       "#import \"@local/ypst-template:0.1.0\" as theme",
-      "#import theme: template, sidenote, theorem, lemma, corollary, definition, proof,",
-      "  fletcher, diagram, node, edge",
+      "#import theme: template, sidenote, theorem, lemma, corollary, definition, proof",
       "",
       "#show: template",
       "",
@@ -16,7 +15,6 @@
       ""
     ]
   },
-
   "Theorem": {
     "prefix": "thm",
     "body": [
@@ -25,7 +23,6 @@
       "]"
     ]
   },
-
   "Lemma": {
     "prefix": "lem",
     "body": [
@@ -34,7 +31,6 @@
       "]"
     ]
   },
-
   "Corollary": {
     "prefix": "cor",
     "body": [
@@ -43,7 +39,6 @@
       "]"
     ]
   },
-
   "Definition": {
     "prefix": "def",
     "body": [
@@ -52,7 +47,6 @@
       "]"
     ]
   },
-
   "Proof": {
     "prefix": "proof",
     "body": [
@@ -61,7 +55,6 @@
       "]"
     ]
   },
-
   "Sidenote": {
     "prefix": "side",
     "body": [
@@ -72,7 +65,6 @@
       "]"
     ]
   },
-
   "Sidenote with image": {
     "prefix": "sideimg",
     "body": [
@@ -85,7 +77,6 @@
       "]"
     ]
   },
-
   "Multiline equation group": {
     "prefix": "eql",
     "body": [
@@ -93,17 +84,6 @@
       "  a &= b + c && \"(a)\" \\",
       "  d &= e + f && \"(b)\"",
       "$ <eq:group>"
-    ]
-  },
-
-  "Fletcher diagram": {
-    "prefix": "dia",
-    "body": [
-      "#diagram(",
-      "  node((0, 0), [A]),",
-      "  node((1, 0), [B]),",
-      "  edge((0, 0), (1, 0)),",
-      ")"
     ]
   }
 }

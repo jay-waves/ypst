@@ -82,15 +82,7 @@
     } else {
         html.elem("script", "(() => {\n" + read("links.js") + "\n" + read("footnotes.js") + "\n" + read("headings.js") + "\n" + read("line_navigation.js") + "\n})();")
     }
-    context if query(raw.where(lang: "mermaid")).len() > 0 {
-        if bundled {
-            html.elem("script", attrs: (src: assets + "pele.js"))
-        } else {
-            html.elem("style", read("mermaid.css"))
-            // HTML export rejects U+0085; preserve the JavaScript value with an escape.
-            let pele = read("pele.global.js").replace("\u{85}", "\\u0085")
-            html.elem("script", "/*\n" + read("LICENSE-Pele.txt").replace("*/", "* /") + "\n*/\n" + pele)
-            html.elem("script", read("mermaid.js"))
-        }
+    if not bundled {
+        html.elem("style", read("mermaid.css"))
     }
 }

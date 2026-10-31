@@ -1,0 +1,8 @@
+{
+  "name": "typst2-graph-assets",
+  "private": true,
+  "type": "module",
+  "scripts": { "build:graphs": "node vendor/build.mjs" },
+  "dependencies": { "chartist": "2.2.0", "linkedom": "0.18.12" },
+  "devDependencies": { "esbuild": "0.25.12" }
+}
