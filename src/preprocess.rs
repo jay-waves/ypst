@@ -37,12 +37,11 @@ impl Prepared {
                 .cast::<ast::ModuleInclude>()
                 .map(|v| v.source())
                 .or_else(|| node.get().cast::<ast::ModuleImport>().map(|v| v.source()));
-            if let Some(ast::Expr::Str(value)) = expr {
-                if !value.get().starts_with('@') {
-                    if let Some(target) = node.find(value.span()) {
-                        out.push((target.range(), value.get().to_string()));
-                    }
-                }
+            if let Some(ast::Expr::Str(value)) = expr
+                && !value.get().starts_with('@')
+                && let Some(target) = node.find(value.span())
+            {
+                out.push((target.range(), value.get().to_string()));
             }
             for child in node.children() {
                 visit(&child, out);
