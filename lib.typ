@@ -42,7 +42,7 @@
 #let _typography = (
     body: (
         latin: (font: _serif_fonts + _cjk_serif_fonts, weights: (400, 700)),
-        cjk: (font: _cjk_serif_fonts, weights: (500, 800)),
+        cjk: (font: _cjk_serif_fonts, weights: (500, 700)),
     ),
     heading: (
         latin: (font: _cjk_sans_fonts, weights: (600, 800)),
@@ -54,7 +54,7 @@
     ),
     table: (
         latin: (font: _serif_fonts + _cjk_serif_fonts, weights: (450, 700)),
-        cjk: (font: _cjk_serif_fonts, weights: (500, 800)),
+        cjk: (font: _cjk_serif_fonts, weights: (500, 700)),
     ),
 )
 

@@ -80,7 +80,4 @@
     } else {
         html.script("(() => {\n" + read("links.js") + "\n" + read("footnotes.js") + "\n" + read("headings.js") + "\n" + read("line_navigation.js") + "\n})();")
     }
-    if not bundled {
-        html.style(read("mermaid.css"))
-    }
 }

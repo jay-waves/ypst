@@ -359,6 +359,31 @@ where
 mod tests {
     use super::*;
     #[test]
+    fn mermaid_accepts_literal_string_without_code_fence() {
+        std::thread::Builder::new()
+            .stack_size(16 * 1024 * 1024)
+            .spawn(|| {
+                let dir = tempfile::tempdir().unwrap();
+                let root = fs::canonicalize(dir.path()).unwrap();
+                let (output, files) = preprocess(
+                    "#mermaid(\"graph LR; A --> B\")",
+                    &root.join("note.typ"),
+                    &root,
+                )
+                .unwrap();
+                assert!(output.contains("image("));
+                assert!(
+                    fs::read_to_string(files.unwrap().path().join("0.svg"))
+                        .unwrap()
+                        .contains("<svg")
+                );
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
     fn preprocesses_static_graph_calls_without_touching_raw_text() {
         std::thread::Builder::new().stack_size(16 * 1024 * 1024).spawn(|| {
             let dir = tempfile::tempdir().unwrap();

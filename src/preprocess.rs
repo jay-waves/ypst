@@ -19,12 +19,27 @@ pub struct Prepared {
     active: BTreeSet<PathBuf>,
 }
 impl Prepared {
+    #[cfg(test)]
     pub fn new(entry: &Path, root: &Path, html: bool) -> Result<Self, String> {
+        Self::with_site_images(entry, root, html, None)
+    }
+    pub fn with_site_images(
+        entry: &Path,
+        root: &Path,
+        html: bool,
+        site: Option<&super::site_images::SiteImages>,
+    ) -> Result<Self, String> {
         let mut result = Self::default();
-        result.text = result.process(entry, root, html)?;
+        result.text = result.process(entry, root, html, site)?;
         Ok(result)
     }
-    fn process(&mut self, path: &Path, root: &Path, html: bool) -> Result<String, String> {
+    fn process(
+        &mut self,
+        path: &Path,
+        root: &Path,
+        html: bool,
+        site: Option<&super::site_images::SiteImages>,
+    ) -> Result<String, String> {
         if !self.active.insert(path.to_owned()) {
             return Err(format!("cyclic include/import: {}", path.display()));
         }
@@ -66,7 +81,7 @@ impl Prepared {
             let copy = if let Some(copy) = self.copies.get(&target) {
                 copy.clone()
             } else {
-                let text = self.process(&target, root, html)?;
+                let text = self.process(&target, root, html, site)?;
                 let original = fs::read_to_string(&target).map_err(|e| e.to_string())?;
                 let copy = if text == original {
                     target.clone()
@@ -104,6 +119,11 @@ impl Prepared {
         if let Some(graphs) = graphs {
             self.graphs.push(graphs);
         }
+        let text = if let Some(site) = site.filter(|_| html) {
+            site.rewrite(&text, path, root)?
+        } else {
+            text
+        };
         let text = if html {
             super::graphs::highlight_code(&text)?
         } else {

@@ -1,8 +1,8 @@
 mod graphs;
 mod preprocess;
+mod site_images;
 mod site_preview;
 use regex::Regex;
-use rquickjs::{CatchResultExt, Context, Function, Runtime};
 use sha2::{Digest, Sha256};
 use std::{
     env, fs,
@@ -16,7 +16,6 @@ const THEME: &str = include_str!("../html/theme.css");
 const HIGHLIGHT_CSS: &str = include_str!("../html/highlight.css");
 const FOOTNOTES: &str = include_str!("../html/footnotes.css");
 const HEADINGS: &str = include_str!("../html/headings.css");
-const MERMAID_CSS: &str = include_str!("../html/mermaid.css");
 const PELE: &str = include_str!("../html/pele.global.js");
 
 const PACKAGE_FILES: &[(&str, &str)] = &[
@@ -32,7 +31,6 @@ const PACKAGE_FILES: &[(&str, &str)] = &[
     ("html/highlight.css", HIGHLIGHT_CSS),
     ("html/footnotes.css", FOOTNOTES),
     ("html/headings.css", HEADINGS),
-    ("html/mermaid.css", MERMAID_CSS),
     ("html/links.js", include_str!("../html/links.js")),
     ("html/footnotes.js", include_str!("../html/footnotes.js")),
     ("html/headings.js", include_str!("../html/headings.js")),
@@ -40,8 +38,6 @@ const PACKAGE_FILES: &[(&str, &str)] = &[
         "html/line_navigation.js",
         include_str!("../html/line_navigation.js"),
     ),
-    ("html/pele.global.js", PELE),
-    ("html/mermaid.js", include_str!("../html/mermaid.js")),
     (
         "html/LICENSE-Pele.txt",
         include_str!("../html/LICENSE-Pele.txt"),
@@ -176,15 +172,7 @@ fn run_compiler(
 }
 
 fn shared_assets(root: &Path) -> Result<PathBuf, String> {
-    let css = [
-        MONASPACE_CSS,
-        THEME,
-        HIGHLIGHT_CSS,
-        FOOTNOTES,
-        HEADINGS,
-        MERMAID_CSS,
-    ]
-    .join("\n");
+    let css = [MONASPACE_CSS, THEME, HIGHLIGHT_CSS, FOOTNOTES, HEADINGS].join("\n");
     let js = format!(
         "(() => {{\n{}\n{}\n{}\n{}\n}})();\n",
         include_str!("../html/links.js"),
@@ -263,95 +251,6 @@ fn escape_relative_url(path: &str) -> String {
         .join("/")
 }
 
-fn externalize_site_images(html: &str, site: &Path, page: &Path) -> Result<String, String> {
-    use base64::{Engine, engine::general_purpose::STANDARD};
-    let pattern = Regex::new(r#"(?is)(<img\b[^>]*?\bsrc\s*=\s*")data:(image/(?:png|jpeg|gif|webp|svg\+xml));base64,([A-Za-z0-9+/=]+)(")"#).unwrap();
-    let excluded =
-        Regex::new(r"(?is)<!--.*?-->|<script\b[^>]*>.*?</script\s*>|<style\b[^>]*>.*?</style\s*>")
-            .unwrap();
-    let ignored: Vec<_> = excluded.find_iter(html).map(|item| item.range()).collect();
-    let matches: Vec<_> = pattern
-        .captures_iter(html)
-        .filter(|cap| {
-            let start = cap.get(0).unwrap().start();
-            !ignored.iter().any(|range| range.contains(&start))
-        })
-        .collect();
-    if matches.is_empty() {
-        return Ok(html.to_owned());
-    }
-    let shared = site.join("_shared/typst/images");
-    fs::create_dir_all(&shared).map_err(|e| e.to_string())?;
-    let shared = fs::canonicalize(shared).map_err(|e| e.to_string())?;
-    let page_dir =
-        fs::canonicalize(page.parent().ok_or("invalid page path")?).map_err(|e| e.to_string())?;
-    let mut result = String::new();
-    let mut cursor = 0;
-    for cap in matches {
-        let whole = cap.get(0).unwrap();
-        result.push_str(&html[cursor..whole.start()]);
-        let bytes = STANDARD
-            .decode(&cap[3])
-            .map_err(|e| format!("invalid embedded image: {e}"))?;
-        let extension = match &cap[2].to_ascii_lowercase()[..] {
-            "image/png" => "png",
-            "image/jpeg" => "jpg",
-            "image/gif" => "gif",
-            "image/webp" => "webp",
-            "image/svg+xml" => "svg",
-            _ => unreachable!(),
-        };
-        let name = format!("{:x}.{extension}", Sha256::digest(&bytes));
-        let destination = shared.join(&name);
-        if fs::read(&destination).ok().as_deref() != Some(bytes.as_slice()) {
-            let mut temp = tempfile::NamedTempFile::new_in(&shared).map_err(|e| e.to_string())?;
-            temp.write_all(&bytes).map_err(|e| e.to_string())?;
-            if let Err(error) = temp.persist(&destination)
-                && fs::read(&destination).ok().as_deref() != Some(bytes.as_slice())
-            {
-                return Err(error.to_string());
-            }
-        }
-        let href = escape_relative_url(&relative_path(&page_dir, &destination)?);
-        result.push_str(&cap[1]);
-        result.push_str(&href);
-        result.push_str(&cap[4]);
-        cursor = whole.end();
-    }
-    result.push_str(&html[cursor..]);
-    Ok(result)
-}
-
-fn render_mermaid(html: &str) -> Result<String, String> {
-    let pattern = Regex::new(
-        r#"(?s)<pre(?:\s[^>]*)?>\s*<code\b[^>]*\bdata-lang="mermaid"[^>]*>(.*?)</code>\s*</pre>"#,
-    )
-    .unwrap();
-    if !pattern.is_match(html) {
-        return Ok(html.into());
-    }
-    let runtime = Runtime::new().map_err(|e| e.to_string())?;
-    runtime.set_memory_limit(256 * 1024 * 1024);
-    runtime.set_max_stack_size(4 * 1024 * 1024);
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-    runtime.set_interrupt_handler(Some(Box::new(move || {
-        std::time::Instant::now() >= deadline
-    })));
-    let context = Context::full(&runtime).map_err(|e| e.to_string())?;
-    context.with(|ctx| -> Result<String, String> {
-        ctx.eval::<(), _>(PELE).catch(&ctx).map_err(|e| format!("Pele initialization: {e}"))?;
-        let function: Function = ctx.eval("(source, id) => pele.render(source, {idPrefix: id, autoDirection: false, maxWidth: 900, images: false}).svg").catch(&ctx).map_err(|e| e.to_string())?;
-        let mut result = String::new(); let mut last = 0;
-        for (index, capture) in pattern.captures_iter(html).enumerate() {
-            let whole = capture.get(0).unwrap(); result.push_str(&html[last..whole.start()]);
-            let source = quick_xml::escape::unescape(capture.get(1).unwrap().as_str()).map_err(|e| format!("invalid Mermaid source: {e}"))?;
-            let svg: String = function.call((source.as_ref(), format!("diagram-{index}"))).catch(&ctx).map_err(|e| format!("Mermaid diagram {}: {e}", index + 1))?;
-            result.push_str("<pre class=\"mermaid\">"); result.push_str(&svg); result.push_str("</pre>"); last = whole.end();
-        }
-        result.push_str(&html[last..]); Ok(result)
-    })
-}
-
 fn default_site_output(site: &Path, project_root: &Path, source: &Path) -> Result<PathBuf, String> {
     let relative = source
         .strip_prefix(project_root)
@@ -374,6 +273,7 @@ fn parse_compile_options(args: &[String]) -> Result<CompileOptions, String> {
         assets_url: None,
     };
     let mut output = None;
+    let mut pdf = false;
     let mut i = 0;
     while i < args.len() {
         let arg = &args[i];
@@ -384,7 +284,12 @@ fn parse_compile_options(args: &[String]) -> Result<CompileOptions, String> {
         let (flag, inline) = arg
             .split_once('=')
             .map_or((arg.as_str(), None), |(name, value)| (name, Some(value)));
-        if matches!(flag, "--site-root" | "--assets-url" | "--output" | "-o") {
+        if flag == "--pdf" {
+            if inline.is_some() {
+                return Err("--pdf does not accept a value".into());
+            }
+            pdf = true;
+        } else if matches!(flag, "--site-root" | "--assets-url" | "--output" | "-o") {
             let value = if let Some(value) = inline {
                 value.to_owned()
             } else {
@@ -438,11 +343,38 @@ fn parse_compile_options(args: &[String]) -> Result<CompileOptions, String> {
         }
         i += 1;
     }
+    if pdf {
+        if result
+            .pass
+            .iter()
+            .any(|arg| arg == "--format" || arg == "-f" || arg.starts_with("--format="))
+        {
+            return Err("--pdf conflicts with --format; specify only one".into());
+        }
+        if result.site.is_some() {
+            return Err("--pdf conflicts with --site-root".into());
+        }
+        result.pass.extend(["--format".into(), "pdf".into()]);
+    }
     if let Some(output) = output {
         if result.positional.len() != 1 {
             return Err("provide one input and one output".into());
         }
         result.positional.push(output);
+    }
+    if result.positional.get(1).is_some_and(|output| {
+        Path::new(output)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("pdf"))
+    }) && !result
+        .pass
+        .iter()
+        .any(|arg| arg == "--format" || arg == "-f" || arg.starts_with("--format="))
+    {
+        if result.site.is_some() {
+            return Err("PDF output conflicts with --site-root".into());
+        }
+        result.pass.extend(["--format".into(), "pdf".into()]);
     }
     Ok(result)
 }
@@ -473,7 +405,7 @@ fn run() -> Result<i32, String> {
         }
         Some("--help") | Some("-h") if args.len() == 1 => {
             println!(
-                "Usage: ypst <compile|serve|stop|install> [OPTIONS]\n\ncompile INPUT [OUTPUT] [--site-root DIR] [-- TYPST_OPTIONS]\nserve INPUT [--root DIR] [--fragment FRAGMENT] | --site-root DIR [--port PORT]\nstop\ninstall"
+                "Usage: ypst <compile|serve|stop|install> [OPTIONS]\n\ncompile INPUT [OUTPUT] [--pdf | --site-root DIR] [-- TYPST_OPTIONS]\nserve INPUT [--root DIR] [--fragment FRAGMENT] | --site-root DIR [--port PORT]\nstop\ninstall"
             );
             return Ok(0);
         }
@@ -515,7 +447,7 @@ fn run() -> Result<i32, String> {
         && matches!(args[1].as_str(), "--help" | "-h")
     {
         println!(
-            "Usage: ypst compile [OPTIONS] INPUT [OUTPUT]\n\n  -o, --output PATH       Output path\n      --site-root DIR     Write a site bundle\n      --assets-url URL    Public URL for shared site styles\n      --root DIR          Typst project root\n  -f, --format FORMAT     Output format: html or pdf\n\nOther Typst compile options are forwarded; use -- to pass them through explicitly."
+            "Usage: ypst compile [OPTIONS] INPUT [OUTPUT]\n\n  -o, --output PATH       Output path (.pdf selects PDF)\n      --site-root DIR     Write a site bundle\n      --assets-url URL    Public URL for shared site styles\n      --root DIR          Typst project root\n      --pdf               Output PDF (default: HTML)\n  -f, --format FORMAT     Explicit output format: html or pdf\n\nOther Typst compile options are forwarded; use -- to pass them through explicitly."
         );
         return Ok(0);
     }
@@ -595,17 +527,52 @@ fn run() -> Result<i32, String> {
     if !source.starts_with(&project_root) {
         return Err("source is outside --root".into());
     }
-    let pdf = format_opt.as_deref() == Some("pdf")
-        || (format_opt.is_none()
-            && positional
-                .get(1)
-                .is_some_and(|s| s.to_ascii_lowercase().ends_with(".pdf")));
+    let pdf = format_opt.as_deref() == Some("pdf");
+    if !pdf
+        && positional
+            .get(1)
+            .is_some_and(|s| s.to_ascii_lowercase().ends_with(".pdf"))
+    {
+        return Err(".pdf output conflicts with the explicit output format".into());
+    }
+    let site_images = if let Some(site) = &site {
+        let cwd = env::current_dir().map_err(|e| e.to_string())?;
+        let site = if site.is_absolute() {
+            site.clone()
+        } else {
+            cwd.join(site)
+        };
+        let mut page = if let Some(output) = positional.get(1) {
+            let output = PathBuf::from(output);
+            if output.is_absolute() {
+                output
+            } else {
+                cwd.join(output)
+            }
+        } else {
+            default_site_output(&site, &project_root, &source)?
+        };
+        if page
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("html"))
+        {
+            page.set_extension("bundle");
+        }
+        Some(site_images::SiteImages { site, page })
+    } else {
+        None
+    };
     let prepared = std::thread::scope(|scope| {
         std::thread::Builder::new()
             .name("typst-preprocess".into())
             .stack_size(16 * 1024 * 1024)
             .spawn_scoped(scope, || {
-                preprocess::Prepared::new(&source, &project_root, !pdf)
+                preprocess::Prepared::with_site_images(
+                    &source,
+                    &project_root,
+                    !pdf,
+                    site_images.as_ref(),
+                )
             })
             .map_err(|e| e.to_string())?
             .join()
@@ -775,20 +742,6 @@ fn run() -> Result<i32, String> {
     if !status.success() {
         return Ok(status.code().unwrap_or(1));
     }
-    let html = fs::read_to_string(&target).map_err(|e| e.to_string())?;
-    let rendered = render_mermaid(&html)?;
-    let rendered = if let Some(root) = &site {
-        externalize_site_images(&rendered, root, &target)?
-    } else {
-        rendered
-    };
-    if rendered != html {
-        let mut temp = tempfile::NamedTempFile::new_in(target.parent().ok_or("invalid output")?)
-            .map_err(|e| e.to_string())?;
-        temp.write_all(rendered.as_bytes())
-            .map_err(|e| e.to_string())?;
-        temp.persist(&target).map_err(|e| e.to_string())?;
-    }
     Ok(0)
 }
 fn is_source_diagnostic(message: &str) -> bool {
@@ -822,21 +775,43 @@ fn main() -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pdf_is_selected_by_flag_or_output_extension() {
+        let parse = |args: &[&str]| {
+            parse_compile_options(&args.iter().map(|arg| (*arg).to_owned()).collect::<Vec<_>>())
+        };
+        assert!(parse(&["note.typ"]).unwrap().pass.is_empty());
+        for args in [
+            vec!["--pdf", "note.typ"],
+            vec!["note.typ", "--pdf"],
+            vec!["note.typ", "--pdf", "--", "--root", "."],
+            vec!["note.typ", "out.pdf"],
+            vec!["note.typ", "-o", "out.PDF"],
+            vec!["--output=out.pdf", "note.typ"],
+        ] {
+            let result = parse(&args).unwrap();
+            assert!(
+                result
+                    .pass
+                    .windows(2)
+                    .any(|pair| pair == ["--format", "pdf"])
+            );
+            assert!(!result.pass.contains(&"--pdf".into()));
+        }
+        assert!(parse(&["note.typ", "--pdf", "--site-root", "site"]).is_err());
+        assert!(parse(&["note.typ", "--pdf", "--format", "html"]).is_err());
+        assert!(parse(&["note.typ", "--pdf=true"]).is_err());
+        assert!(parse(&["note.typ", "out.pdf", "--site-root", "site"]).is_err());
+        let explicit = parse(&["note.typ", "out.pdf", "--format", "html"]).unwrap();
+        assert_eq!(explicit.pass, ["--format", "html"]);
+    }
     #[test]
     fn child_exit_codes_follow_public_contract() {
         assert_eq!(normalized_exit(0), ExitCode::SUCCESS);
         assert_eq!(normalized_exit(1), ExitCode::FAILURE);
         assert_eq!(normalized_exit(2), ExitCode::FAILURE);
         assert_eq!(normalized_exit(42), ExitCode::FAILURE);
-    }
-    #[test]
-    fn renders_mermaid_to_svg_without_browser_javascript() {
-        let input =
-            "<div><pre><code data-lang=\"mermaid\">graph TD\n A --&gt; B</code></pre></div>";
-        let result = render_mermaid(input).unwrap();
-        assert!(result.contains("<svg"));
-        assert!(result.contains("class=\"mermaid\""));
-        assert!(!result.contains("data-lang=\"mermaid\""));
     }
     #[test]
     fn install_uses_fixed_version_and_preserves_other_files() {
@@ -945,41 +920,5 @@ mod tests {
         let parsed = parse_compile_options(&args).unwrap();
         assert_eq!(parsed.positional, ["note.typ", "out.pdf"]);
         assert_eq!(parsed.pass, ["--format", "pdf"]);
-    }
-    #[test]
-    fn site_images_are_shared_and_script_text_is_preserved() {
-        let tmp = tempfile::tempdir().unwrap();
-        let site = tmp.path().join("site space");
-        let page = site.join("a/b/index.html");
-        fs::create_dir_all(page.parent().unwrap()).unwrap();
-        let html = r#"<script>const sample = '<img src="data:image/png;base64,aGVsbG8=">';</script><img alt="x" src="data:image/png;base64,aGVsbG8="><img src="data:image/png;base64,aGVsbG8=">"#;
-        let output = externalize_site_images(html, &site, &page).unwrap();
-        assert!(output.contains("const sample = '<img src=\"data:image/png;base64,aGVsbG8=\">'"));
-        assert_eq!(output.matches("../../_shared/typst/images/").count(), 2);
-        let files = fs::read_dir(site.join("_shared/typst/images"))
-            .unwrap()
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
-        assert_eq!(files.len(), 1);
-        assert_eq!(fs::read(files[0].path()).unwrap(), b"hello");
-        let second_page = site.join("other/index.html");
-        fs::create_dir_all(second_page.parent().unwrap()).unwrap();
-        let second = externalize_site_images(html, &site, &second_page).unwrap();
-        assert_eq!(second.matches("../_shared/typst/images/").count(), 2);
-        assert_eq!(
-            fs::read_dir(site.join("_shared/typst/images"))
-                .unwrap()
-                .count(),
-            1
-        );
-        assert_eq!(
-            externalize_site_images(&output, &site, &page).unwrap(),
-            output
-        );
-    }
-    #[test]
-    fn preserves_html_without_mermaid() {
-        let input = "<p>Hello</p>";
-        assert_eq!(render_mermaid(input).unwrap(), input);
     }
 }
