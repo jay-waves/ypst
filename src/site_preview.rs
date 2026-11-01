@@ -279,7 +279,7 @@ pub fn compile(values: Vec<String>) -> Result<(), String> {
         return Err("compilation failed".into());
     }
     ensure_server(&shared_root())?;
-    let page = site.join(relative).with_extension("").join("index.html");
+    let page = site.join(relative).join("index.html");
     let page = dunce::canonicalize(page).map_err(|e| e.to_string())?;
     notify(&shared_root(), &page, fragment.as_deref())?;
     let relative = preview_relative_url(&shared_root(), &page)?;

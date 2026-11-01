@@ -127,12 +127,12 @@ For a site with shared CSS and scripts, use:
 ypst compile --root . note.typ --site-root _site
 ```
 
-This writes `_site/note/index.html` and shared assets under
+This writes `_site/note.typ/index.html` and shared assets under
 `_site/_shared/typst/<content-hash>/`. Source paths relative to `--root` (the current directory by default) are preserved; an explicit output selects the page's bundle directory.
 Site output extracts embedded PNG, JPEG, GIF, WebP, and SVG images into `_site/_shared/typst/images/` using content hashes; pages use relative URLs and identical images are reused. This includes generated graphs, downloaded images, and ordinary Typst images. Standalone output keeps them embedded. Deploy the site directory together. `--assets-url /static/` replaces the relative
 shared-asset URL prefix; map that URL to the generated content-hash directory.
 Links are emitted as written, so use paths relative to the output page, such as
-`../b/` from `a/index.html` to `b/index.html`. Links to `.typ` files are not
+`../b.typ/` from `a.typ/index.html` to `b.typ/index.html`. Links to `.typ` files are not
 converted to site URLs.
 
 For PDF use `ypst compile note.typ note.pdf` or pass `-- --format pdf`. Other Typst subcommands are passed through. The command returns exit code 0 on success and 1 on failure, including argument and Typst errors.

@@ -356,7 +356,7 @@ fn default_site_output(site: &Path, project_root: &Path, source: &Path) -> Resul
     let relative = source
         .strip_prefix(project_root)
         .map_err(|_| "source must be inside --root when output is omitted")?;
-    Ok(site.join(relative).with_extension(""))
+    Ok(site.join(relative))
 }
 
 struct CompileOptions {
@@ -917,7 +917,7 @@ mod tests {
         let site = tmp.path().join("site");
         assert_eq!(
             default_site_output(&site, &project, &source).unwrap(),
-            site.join("nested/note")
+            site.join("nested/note.typ")
         );
         assert!(default_site_output(&site, &project, &tmp.path().join("elsewhere.typ")).is_err());
     }
