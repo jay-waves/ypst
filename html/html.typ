@@ -72,7 +72,8 @@
     if bundled {
         html.elem("link", attrs: (rel: "stylesheet", href: assets + "theme.css", "data-theme": theme))
     } else {
-        html.elem("style", attrs: ("data-theme": theme), read("monaspace.css") + "\n" + read("theme.css") + "\n" + read("highlight.css") + "\n" + read("footnotes.css") + "\n" + read("headings.css"))
+        let font = "@font-face { font-family: 'Monaspace Neon'; src: url('https://cdn.jsdelivr.net/gh/githubnext/monaspace@v1.400/fonts/Web%20Fonts/Variable%20Web%20Fonts/Monaspace%20Neon/Monaspace%20Neon%20Var.woff') format('woff'); font-style: normal; font-weight: 200 800; font-display: swap; }"
+        html.elem("style", attrs: ("data-theme": theme), font + "\n" + read("theme.css") + "\n" + read("highlight.css") + "\n" + read("footnotes.css") + "\n" + read("headings.css"))
     }
     block(html.div(class: "typst-document", body))
     if bundled {

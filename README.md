@@ -129,6 +129,8 @@ ypst compile --root . note.typ --site-root _site
 
 This writes `_site/note.typ/index.html` and shared assets under
 `_site/_shared/typst/<content-hash>/`. Source paths relative to `--root` (the current directory by default) are preserved; an explicit output selects the page's bundle directory.
+The shared site theme references a separate `monaspace.woff` in the same content-versioned directory, so pages reuse both the stylesheet and font. The built-in preview server uses long-lived caching for content-addressed shared resources and ETags for other static files; configure equivalent cache headers separately when deploying to another server. Standalone HTML loads Monaspace Neon from jsDelivr and falls back to local monospace fonts when offline.
+
 Site preprocessing writes known PNG, JPEG, GIF, WebP, and SVG images into `_site/_shared/typst/images/` using content hashes; pages reference these files directly and identical images are reused. This includes literal local images, downloaded images, and generated graphs. Standalone output keeps images embedded. Deploy the site directory together. `--assets-url /static/` replaces the relative
 shared-asset URL prefix; map that URL to the generated content-hash directory.
 
@@ -181,7 +183,7 @@ Examples import the checkout directly. In your own documents, use `@local/ypst-t
 
 The installer does not install fonts. Download `ypst-fonts.tar.xz` from the `0.1.0` release and extract it, or use the checkout fonts; pass the resulting font directory with `--font-path` for PDF. The archive includes Georgia as the original `georgi32.exe` installer with its EULA, not as extracted font files. Review its terms before use or redistribution. To extract Georgia from the release archive without downloading it again, run `python fonts/download-georgia.py --archive <extracted-dir>/Georgia/georgi32.exe --license <extracted-dir>/Georgia/EULA.html --destination <extracted-dir>/Georgia/extracted`. Linux extraction requires `cabextract` or 7-Zip. The release also provides `ypst-fonts.tar.xz.sha256` for integrity checking.
 
-HTML embeds Monaspace Neon for code. Other fonts use locally installed faces and fall back to system fonts when unavailable. Code uses 13px in HTML and 6.25pt in PDF.
+Standalone HTML loads Monaspace Neon for code from jsDelivr and falls back to Consolas, Menlo, or a system monospace font. Site output uses a shared local font file. Other fonts use locally installed faces and fall back to system fonts when unavailable. Code uses 13px in HTML and 6.25pt in PDF.
 
 The `[tool.ypst-template.assets]` tables in `typst.toml` record bundled asset
 versions, files, sources and licenses. They are an inventory of this checkout,

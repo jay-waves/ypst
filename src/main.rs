@@ -172,7 +172,25 @@ fn run_compiler(
 }
 
 fn shared_assets(root: &Path) -> Result<PathBuf, String> {
-    let css = [MONASPACE_CSS, THEME, HIGHLIGHT_CSS, FOOTNOTES, HEADINGS].join("\n");
+    use base64::Engine as _;
+    let prefix = "data:font/woff;base64,";
+    let start = MONASPACE_CSS
+        .find(prefix)
+        .ok_or("missing embedded Monaspace font")?;
+    let payload = start + prefix.len();
+    let end = MONASPACE_CSS[payload..]
+        .find('"')
+        .ok_or("invalid embedded Monaspace font")?
+        + payload;
+    let font = base64::engine::general_purpose::STANDARD
+        .decode(&MONASPACE_CSS[payload..end])
+        .map_err(|e| e.to_string())?;
+    let font_css = format!(
+        "{}monaspace.woff{}",
+        &MONASPACE_CSS[..start],
+        &MONASPACE_CSS[end..]
+    );
+    let css = [&font_css, THEME, HIGHLIGHT_CSS, FOOTNOTES, HEADINGS].join("\n");
     let js = format!(
         "(() => {{\n{}\n{}\n{}\n{}\n}})();\n",
         include_str!("../html/links.js"),
@@ -181,7 +199,11 @@ fn shared_assets(root: &Path) -> Result<PathBuf, String> {
         include_str!("../html/line_navigation.js")
     );
     let mut hash = Sha256::new();
-    for (name, data) in [("theme.css", css.as_bytes()), ("theme.js", js.as_bytes())] {
+    for (name, data) in [
+        ("theme.css", css.as_bytes()),
+        ("theme.js", js.as_bytes()),
+        ("monaspace.woff", font.as_slice()),
+    ] {
         hash.update(name.as_bytes());
         hash.update(data);
     }
@@ -189,7 +211,11 @@ fn shared_assets(root: &Path) -> Result<PathBuf, String> {
         .join("_shared/typst")
         .join(&format!("{:x}", hash.finalize())[..16]);
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    for (name, data) in [("theme.css", css.as_bytes()), ("theme.js", js.as_bytes())] {
+    for (name, data) in [
+        ("theme.css", css.as_bytes()),
+        ("theme.js", js.as_bytes()),
+        ("monaspace.woff", font.as_slice()),
+    ] {
         let path = dir.join(name);
         if fs::read(&path).ok().as_deref() != Some(data) {
             let mut file = tempfile::NamedTempFile::new_in(&dir).map_err(|e| e.to_string())?;
@@ -775,6 +801,40 @@ fn main() -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shared_assets_separate_font_and_repair_corruption() {
+        let root = tempfile::tempdir().unwrap();
+        let dir = shared_assets(root.path()).unwrap();
+        let css = fs::read_to_string(dir.join("theme.css")).unwrap();
+        let font = fs::read(dir.join("monaspace.woff")).unwrap();
+        assert!(css.contains("url(\"monaspace.woff\")"));
+        assert!(!css.contains("data:font/woff;base64,"));
+        assert!(font.starts_with(b"wOFF"));
+        let modified = fs::metadata(dir.join("monaspace.woff"))
+            .unwrap()
+            .modified()
+            .unwrap();
+        assert_eq!(shared_assets(root.path()).unwrap(), dir);
+        assert_eq!(
+            fs::metadata(dir.join("monaspace.woff"))
+                .unwrap()
+                .modified()
+                .unwrap(),
+            modified
+        );
+        fs::write(dir.join("monaspace.woff"), b"damaged").unwrap();
+        shared_assets(root.path()).unwrap();
+        assert_eq!(fs::read(dir.join("monaspace.woff")).unwrap(), font);
+    }
+
+    #[test]
+    fn standalone_html_uses_remote_font_and_local_fallback() {
+        let template = include_str!("../html/html.typ");
+        assert!(template.contains("https://cdn.jsdelivr.net/gh/githubnext/monaspace@v1.400/"));
+        assert!(!template.contains("read(\"monaspace.css\")"));
+        assert!(THEME.contains("\"Monaspace Neon\", Consolas, Menlo, ui-monospace, monospace"));
+    }
 
     #[test]
     fn pdf_is_selected_by_flag_or_output_extension() {
