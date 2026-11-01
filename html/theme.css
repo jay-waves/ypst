@@ -20,8 +20,8 @@
   --md-alert-tip: #1a7f37;
   --md-font-serif: Georgia, "Source Han Serif CN", "Source Han Serif", serif;
   --md-font-sans: "Source Han Sans CN", "Source Han Sans", system-ui, sans-serif;
-  --md-font-mono: "Iosevka", monospace;
-  --md-code-font-size: 14px;
+  --md-font-mono: "Monaspace Neon", monospace;
+  --md-code-font-size: 13px;
   --md-font: var(--md-font-serif);
   --md-block-indent: 2rem;
   color-scheme: light;

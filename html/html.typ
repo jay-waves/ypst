@@ -72,7 +72,7 @@
     if bundled {
         html.elem("link", attrs: (rel: "stylesheet", href: assets + "theme.css", "data-theme": theme))
     } else {
-        html.elem("style", attrs: ("data-theme": theme), read("theme.css") + "\n" + read("highlight.css") + "\n" + read("footnotes.css") + "\n" + read("headings.css"))
+        html.elem("style", attrs: ("data-theme": theme), read("monaspace.css") + "\n" + read("theme.css") + "\n" + read("highlight.css") + "\n" + read("footnotes.css") + "\n" + read("headings.css"))
     }
     block(html.div(class: "typst-document", body))
     if bundled {

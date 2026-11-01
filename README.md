@@ -174,12 +174,12 @@ Examples import the checkout directly. In your own documents, use `@local/ypst-t
 | Latin prose | Georgia |
 | Chinese prose | Source Han Serif |
 | Headings | Georgia / Source Han Serif |
-| Code | Iosevka |
+| Code | Monaspace Neon |
 | Math | New Computer Modern Math |
 
 The installer does not install fonts. Download `ypst-fonts.tar.xz` from the `0.1.0` release and extract it, or use the checkout fonts; pass the resulting font directory with `--font-path` for PDF. The archive includes Georgia as the original `georgi32.exe` installer with its EULA, not as extracted font files. Review its terms before use or redistribution. To extract Georgia from the release archive without downloading it again, run `python fonts/download-georgia.py --archive <extracted-dir>/Georgia/georgi32.exe --license <extracted-dir>/Georgia/EULA.html --destination <extracted-dir>/Georgia/extracted`. Linux extraction requires `cabextract` or 7-Zip. The release also provides `ypst-fonts.tar.xz.sha256` for integrity checking.
 
-HTML uses locally installed fonts and falls back to system fonts when they are unavailable. Install the preferred fonts locally to use them; the stylesheet does not load font files.
+HTML embeds Monaspace Neon for code. Other fonts use locally installed faces and fall back to system fonts when unavailable. Code uses 13px in HTML and 6.25pt in PDF.
 
 The `[tool.ypst-template.assets]` tables in `typst.toml` record bundled asset
 versions, files, sources and licenses. They are an inventory of this checkout,

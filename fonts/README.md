@@ -5,7 +5,7 @@ Install these fonts locally for HTML exports; unavailable fonts fall back to sys
 
 - Source Han Serif: Regular/SemiBold/Bold; LICENSE-SourceHanSerif.txt.
 - Source Han Sans: Regular/Medium/Bold; LICENSE-SourceHanSans.txt.
-- Iosevka: Regular/Bold; LICENSE-Iosevka.txt.
+- Monaspace Neon 1.400: Regular/Bold OTF; LICENSE-Monaspace.txt.
 - New Computer Modern Math: Regular; NOTICE-NewCMMath.txt.
 
 Keep the unmodified font files and their licenses together when redistributing.

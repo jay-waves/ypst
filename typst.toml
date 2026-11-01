@@ -27,11 +27,11 @@ files = ["fonts/SourceHanSansCN-Regular.otf", "fonts/SourceHanSansCN-Medium.otf"
 license = "fonts/LICENSE-SourceHanSans.txt"
 project = "https://github.com/adobe-fonts/source-han-sans"
 
-[tool.ypst-template.assets.iosevka]
-version = "34.9.0"
-files = ["fonts/Iosevka-Regular.ttf", "fonts/Iosevka-Bold.ttf"]
-license = "fonts/LICENSE-Iosevka.txt"
-project = "https://github.com/be5invis/Iosevka"
+[tool.ypst-template.assets.monaspace]
+version = "1.400"
+files = ["fonts/MonaspaceNeon-Regular.otf", "fonts/MonaspaceNeon-Bold.otf", "html/monaspace.css"]
+license = "fonts/LICENSE-Monaspace.txt"
+project = "https://github.com/githubnext/monaspace"
 
 [tool.ypst-template.assets.new-computer-modern-math]
 version = "4.0"

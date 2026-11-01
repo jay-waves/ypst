@@ -11,6 +11,7 @@ use std::{
     process::{Command, ExitCode, Stdio},
 };
 
+const MONASPACE_CSS: &str = include_str!("../html/monaspace.css");
 const THEME: &str = include_str!("../html/theme.css");
 const HIGHLIGHT_CSS: &str = include_str!("../html/highlight.css");
 const FOOTNOTES: &str = include_str!("../html/footnotes.css");
@@ -23,6 +24,11 @@ const PACKAGE_FILES: &[(&str, &str)] = &[
     ("lib.typ", include_str!("../lib.typ")),
     ("html/html.typ", include_str!("../html/html.typ")),
     ("html/theme.css", THEME),
+    ("html/monaspace.css", MONASPACE_CSS),
+    (
+        "fonts/LICENSE-Monaspace.txt",
+        include_str!("../fonts/LICENSE-Monaspace.txt"),
+    ),
     ("html/highlight.css", HIGHLIGHT_CSS),
     ("html/footnotes.css", FOOTNOTES),
     ("html/headings.css", HEADINGS),
@@ -170,7 +176,15 @@ fn run_compiler(
 }
 
 fn shared_assets(root: &Path) -> Result<PathBuf, String> {
-    let css = [THEME, HIGHLIGHT_CSS, FOOTNOTES, HEADINGS, MERMAID_CSS].join("\n");
+    let css = [
+        MONASPACE_CSS,
+        THEME,
+        HIGHLIGHT_CSS,
+        FOOTNOTES,
+        HEADINGS,
+        MERMAID_CSS,
+    ]
+    .join("\n");
     let js = format!(
         "(() => {{\n{}\n{}\n{}\n{}\n}})();\n",
         include_str!("../html/links.js"),

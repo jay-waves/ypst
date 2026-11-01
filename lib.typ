@@ -28,7 +28,7 @@
 )
 
 #let _code_fonts = (
-    "Iosevka",
+    "Monaspace Neon",
     "Source Han Sans",
 )
 
@@ -71,7 +71,7 @@
 
 #let _font_size = (
   tiny: 6.5pt,
-  code: 6.75pt,
+  code: 6.25pt,
   body: 8pt,
   // Match the HTML heading scale: 1.4x / 1.2x / 1.1x of body text.
   h1: 11.2pt,
