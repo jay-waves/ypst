@@ -457,11 +457,12 @@ body .markdown-alert.markdown-alert-caution { border-left-color: var(--md-danger
 
 body .markdown-alert.markdown-alert-caution .markdown-alert-title { color: var(--md-danger); }
 
-body .katex,
-body mjx-container { font-size: 1em; }
-
-/* Native MathML uses the same bundled math family as PDF equations. */
-body math { font-family: "New Computer Modern Math", math; }
+/* Typst emits inline frames as block SVGs; keep them in the text line. */
+body .ypst-math-svg { overflow: visible; display: block; }
+body :is(p, h1, h2, h3, h4, h5, h6, li, strong, em, a, td, th) > svg {
+  display: inline-block !important;
+  vertical-align: middle;
+}
 
 body .display-equation {
   display: grid;

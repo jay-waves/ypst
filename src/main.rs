@@ -2,6 +2,7 @@ mod graphs;
 mod preprocess;
 mod site_images;
 mod site_preview;
+mod svg_glyphs;
 use regex::Regex;
 use sha2::{Digest, Sha256};
 use std::{
@@ -768,6 +769,7 @@ fn run() -> Result<i32, String> {
     if !status.success() {
         return Ok(status.code().unwrap_or(1));
     }
+    svg_glyphs::optimize_file(&target)?;
     Ok(0)
 }
 fn is_source_diagnostic(message: &str) -> bool {

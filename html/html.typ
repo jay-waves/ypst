@@ -21,7 +21,8 @@
 #let template(theme: "light", body) = {
     // HTML follows the browser; the public theme parameter controls PDF only.
     let theme = "auto"
-    // Keep display equations as SVG for consistent typography.
+    // TODO: Revisit SVG frames when Typst's HTML math export preserves all features.
+    show math.equation.where(block: false): it => html.frame(it)
     show math.equation.where(block: true): it => context {
         set text(fill: rgb("#363733"))
         let formula = html.frame(math.equation(math.display(it.body), block: false, numbering: none))
