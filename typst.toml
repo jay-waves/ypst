@@ -9,11 +9,11 @@ compiler = "0.15.0"
 
 # Checkout asset inventory. Font versions come from the embedded metadata.
 [tool.ypst-template.assets.pele]
-version = "1.6.0"
+version = "1.13.0"
 files = ["html/pele.global.js"]
 license = "html/LICENSE-Pele.txt"
-source = "https://cdn.jsdelivr.net/npm/pele@1.6.0/dist/pele.global.js"
-sha256 = "b82d1bcd435302779a945e1e0f4a54ea56fb26e010ce3f2122f4216fcfc095d7"
+source = "https://cdn.jsdelivr.net/npm/pele@1.13.0/dist/pele.global.js"
+sha256 = "0b0a46c57a5a6971670c09f5ec4066705bd78505f90fd11adf6260325efa0910"
 
 [tool.ypst-template.assets.source-han-serif]
 version = "2.003"

@@ -105,7 +105,7 @@ For HTML, `ypst compile` pre-renders static code blocks with highlight.js. Unkno
 
 Chartist defaults are defined in `chartist.css` and applied to generated SVG, including PDF and site images. Chartist does not create axis titles automatically; custom titles can use `ct-axis-title-x` (horizontal) and `ct-axis-title-y` (vertical). Tick labels remain horizontal.
 
-The bundled QuickJS graph resources are checked in. To rebuild them after changing their source or dependencies, run `npm ci` and `npm run build:graphs` in this repository.
+The bundled QuickJS graph resources are checked in. To rebuild them after changing their source or dependencies, run `npm ci` and `npm run build:graphs` in this repository. This also synchronizes the Pele version, license, and digest in the asset inventory. The embedded FormatJS polyfills provide English locale data for QuickJS.
 
 ### HTML export
 

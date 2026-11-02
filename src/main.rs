@@ -30,6 +30,10 @@ const PACKAGE_FILES: &[(&str, &str)] = &[
         include_str!("../fonts/LICENSE-Monaspace.txt"),
     ),
     ("html/highlight.css", HIGHLIGHT_CSS),
+    (
+        "html/LICENSE-FormatJS.txt",
+        include_str!("../vendor/FormatJS-LICENSE"),
+    ),
     ("html/footnotes.css", FOOTNOTES),
     ("html/headings.css", HEADINGS),
     ("html/links.js", include_str!("../html/links.js")),

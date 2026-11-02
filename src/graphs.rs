@@ -29,6 +29,8 @@ fn raw_content(node: &SyntaxNode) -> Option<String> {
     }
     node.children().find_map(raw_content)
 }
+const CSS_NUMBER_FORMAT: &str = include_str!("../vendor/intl.js");
+
 fn render_chart(source: &str) -> Result<String, String> {
     let runtime = Runtime::new().map_err(|e| e.to_string())?;
     runtime.set_memory_limit(256 * 1024 * 1024);
@@ -38,6 +40,7 @@ fn render_chart(source: &str) -> Result<String, String> {
     let context = Context::full(&runtime).map_err(|e| e.to_string())?;
     context.with(|ctx| {
         let result = (|| -> rquickjs::Result<String> {
+            ctx.eval::<(), _>(CSS_NUMBER_FORMAT)?;
             ctx.eval::<(), _>(CHARTIST)?;
             ctx.globals().set("__chartistCss", CSS)?;
             ctx.globals().set("__chartistTheme", CHART_STYLE)?;
@@ -118,6 +121,7 @@ pub fn highlight_code(source: &str) -> Result<String, String> {
     let context = Context::full(&runtime).map_err(|e| e.to_string())?;
     context.with(|ctx| {
         let result = (|| -> rquickjs::Result<String> {
+            ctx.eval::<(), _>(CSS_NUMBER_FORMAT)?;
             ctx.eval::<(), _>(include_str!("../vendor/highlight.js"))?;
             let render: Function = ctx.globals().get("highlightTypst")?;
             let mut output = source.to_owned();
@@ -360,6 +364,16 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn intl_number_format_handles_grouping_and_rounding() {
+        let runtime = Runtime::new().unwrap();
+        let context = Context::full(&runtime).unwrap();
+        context.with(|ctx| {
+            ctx.eval::<(), _>(CSS_NUMBER_FORMAT).unwrap();
+            let result: String = ctx.eval("new Intl.NumberFormat('en-US', {useGrouping: true, maximumFractionDigits: 2}).format(1234.567)").unwrap();
+            assert_eq!(result, "1,234.57");
+        });
+    }
     #[test]
     fn mermaid_accepts_literal_string_without_code_fence() {
         std::thread::Builder::new()
