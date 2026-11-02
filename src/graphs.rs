@@ -53,7 +53,7 @@ fn render_chart(source: &str) -> Result<String, String> {
             let run: Function = ctx.globals().get("runViz")?;
             run.call((function, container))
         })();
-        result.catch(&ctx).map_err(|e| format!("chartist: {e}"))
+        result.catch(&ctx).map_err(|e| e.to_string())
     })
 }
 fn render_mermaid(source: &str, index: usize) -> Result<String, String> {
@@ -302,8 +302,10 @@ where
                 if !file.starts_with(root) {
                     return Err("chartist file is outside --root".into());
                 }
-                let script = fs::read_to_string(&file).map_err(|e| e.to_string())?;
-                let markup = render_chart(&script)?;
+                let script = fs::read_to_string(&file)
+                    .map_err(|e| format!("cannot read chartist {relative:?}: {e}"))?;
+                let markup =
+                    render_chart(&script).map_err(|e| format!("chartist {relative:?}: {e}"))?;
                 let start = markup.find("<svg").ok_or("chartist must render an SVG")?;
                 let end = markup
                     .rfind("</svg>")
