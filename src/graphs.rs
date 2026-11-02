@@ -12,6 +12,8 @@ use typst_syntax::{
 const CHARTIST: &str = include_str!("../vendor/renderer.js");
 const CHARTIST_MODULE: &str = include_str!("../vendor/chartist-module.js");
 const CHARTIST_SERVER: &str = include_str!("../vendor/chartist-server-module.js");
+const ESSENTIALS: &str = include_str!("../vendor/chartist-essentials-module.js");
+const ESSENTIALS_CSS: &str = include_str!("../vendor/chartist-essentials.css");
 const CSS: &str = include_str!("../vendor/chartist.css");
 const CHART_STYLE: &str = include_str!("../chartist.css");
 
@@ -44,8 +46,10 @@ fn render_chart(source: &str) -> Result<String, String> {
             ctx.eval::<(), _>(CHARTIST)?;
             ctx.globals().set("__chartistCss", CSS)?;
             ctx.globals().set("__chartistTheme", CHART_STYLE)?;
-            ctx.eval::<(), _>("globalThis.__vizRenderSvg = scene => __vizChartistServer.renderToString(__vizChartistServer.applyStyles(scene, [__chartistCss, __chartistTheme]));")?;
+            ctx.globals().set("__essentialsCss", ESSENTIALS_CSS)?;
+            ctx.eval::<(), _>("globalThis.__vizRenderSvg = scene => __vizChartistServer.renderToString(__vizChartistServer.applyStyles(scene, [__chartistCss, __essentialsCss, __chartistTheme]));")?;
             Module::declare(ctx.clone(), "chartist", CHARTIST_MODULE)?.eval()?.1.finish::<()>()?;
+            Module::declare(ctx.clone(), "@chartist-js/essentials", ESSENTIALS)?.eval()?.1.finish::<()>()?;
             let server = CHARTIST_SERVER.replace("export const renderToString=globalThis.__vizChartistServer.renderToString;", "export const renderToString=globalThis.__vizRenderSvg;");
             Module::declare(ctx.clone(), "chartist/server", server)?.eval()?.1.finish::<()>()?;
             let prepare: Function = ctx.globals().get("prepareViz")?;
@@ -471,12 +475,47 @@ mod tests {
     }
 
     #[test]
+    fn essentials_layers_use_the_chart_theme_in_static_svg() {
+        std::thread::Builder::new()
+            .stack_size(16 * 1024 * 1024)
+            .spawn(|| {
+                let source = r#"
+import { lineChartConfig } from 'chartist';
+import { toScene, renderToString } from 'chartist/server';
+import { trendLine, targetLine, valueLabels } from '@chartist-js/essentials';
+export default c => {
+  const config = lineChartConfig({labels:['A','B','C'],series:[[1,3,2],[2,4,3]]},
+    {layers:{above:[trendLine(), targetLine({value:2,label:'Target'}), valueLabels()]}});
+  c.innerHTML = renderToString(toScene(config, {width:600,height:300}));
+};
+"#;
+                let svg = render_chart(source).unwrap();
+                let element = |class: &str, occurrence: usize| {
+                    svg.split('<')
+                        .filter(|part| part.contains(&format!("class=\"{class}\"")))
+                        .nth(occurrence)
+                        .unwrap()
+                        .split('>')
+                        .next()
+                        .unwrap()
+                };
+                assert!(element("ct-trend-line", 0).contains("stroke=\"#332288\""));
+                assert!(element("ct-trend-line", 1).contains("stroke=\"#44aa99\""));
+                assert!(element("ct-target-line", 0).contains("stroke=\"#666666\""));
+                assert!(element("ct-target-label", 0).contains("fill=\"#666666\""));
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
     fn preprocesses_static_graph_calls_without_touching_raw_text() {
         std::thread::Builder::new().stack_size(16 * 1024 * 1024).spawn(|| {
             let dir = tempfile::tempdir().unwrap();
             let root = fs::canonicalize(dir.path()).unwrap();
             let input = root.join("note.typ");
-            fs::write(root.join("chart.js"), "import { barChartConfig } from 'chartist'; import { toScene, renderToString } from 'chartist/server'; export default c => { c.innerHTML = renderToString(toScene(barChartConfig({labels:['A'],series:[[1]]}),{width:400,height:200})); };").unwrap();
+            fs::write(root.join("chart.js"), include_str!("../examples/chart.js")).unwrap();
             let source = "// #chartist(\"missing.js\")\n#chartist(\"chart.js\", caption: [Chart], width: 70%)\n#mermaid(caption: [Flow])[\n```mermaid\ngraph LR\n A --> B\n```\n]\n`#chartist(\"no.js\")`\n";
             let (out, graphs) = preprocess(source, &input, &root).unwrap();
             assert!(out.contains("figure(image("));
@@ -488,7 +527,8 @@ mod tests {
             let chart = fs::read_to_string(graph.path().join("0.svg")).unwrap();
             let mermaid = fs::read_to_string(graph.path().join("1.svg")).unwrap();
             assert!(chart.contains("ct-bar"));
-            assert!(chart.contains("#618ba2"));
+            assert!(chart.contains("#332288"));
+            assert!(chart.contains("ct-axis-title"));
             assert!(chart.contains("Georgia"));
             assert!(mermaid.contains("<svg"));
             assert!(!mermaid.contains("var(--"));

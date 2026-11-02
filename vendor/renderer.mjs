@@ -1,7 +1,9 @@
 import * as chartist from 'chartist';
+import * as essentials from '@chartist-js/essentials';
 import * as server from 'chartist/server';
 import { parseHTML } from 'linkedom/worker';
 globalThis.__vizChartist = chartist;
+globalThis.__vizEssentials = essentials;
 globalThis.__vizChartistServer = server;
 globalThis.prepareViz = () => {
   const { document } = parseHTML('<!doctype html><html><body></body></html>');

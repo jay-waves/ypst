@@ -1,5 +1,6 @@
 import { build } from 'esbuild';
 import * as chartist from 'chartist';
+import * as essentials from '@chartist-js/essentials';
 import * as server from 'chartist/server';
 import { copyFile, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
@@ -17,6 +18,9 @@ await build({ entryPoints: [resolve(dir, 'renderer.mjs')], outfile: resolve(dir,
   format: 'iife', platform: 'neutral', mainFields: ['module', 'main'], target: 'es2020',
   minifyWhitespace: true, minifyIdentifiers: true, minifySyntax: false, legalComments: 'inline' });
 await moduleFile('chartist-module.js', chartist, '__vizChartist');
+await moduleFile('chartist-essentials-module.js', essentials, '__vizEssentials');
+await copyFile(resolve(dir, '../node_modules/@chartist-js/essentials/dist/styles.css'), resolve(dir, 'chartist-essentials.css'));
+await copyFile(resolve(dir, '../node_modules/@chartist-js/essentials/LICENSE-MIT'), resolve(dir, 'Chartist-Essentials-LICENSE'));
 await moduleFile('chartist-server-module.js', server, '__vizChartistServer');
 const chartistDir = dirname(require.resolve('chartist/package.json'));
 const linkedomDir = dirname(require.resolve('linkedom/package.json'));
