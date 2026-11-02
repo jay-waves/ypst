@@ -436,7 +436,7 @@ fn run() -> Result<i32, String> {
         }
         Some("--help") | Some("-h") if args.len() == 1 => {
             println!(
-                "Usage: ypst <compile|serve|stop|install> [OPTIONS]\n\ncompile INPUT [OUTPUT] [--pdf | --site-root DIR] [-- TYPST_OPTIONS]\nserve INPUT [--root DIR] [--fragment FRAGMENT] | --site-root DIR [--port PORT]\nstop\ninstall"
+                "Usage: ypst <compile|serve|stop|install> [OPTIONS]\n\ncompile INPUT [OUTPUT] [--pdf | --site-root DIR] [-- TYPST_OPTIONS]\nserve INPUT [--root DIR] [--fragment FRAGMENT] | --site-root DIR [--port PORT]\nstop\ninstall\n\nRepository and documentation: https://github.com/jay-waves/ypst\nChartist Paul Tol Muted series colors: className: 'tol-muted-rose' (for example).\nNames: indigo, cyan, teal, green, olive, sand, rose, wine, purple, grey."
             );
             return Ok(0);
         }
@@ -478,7 +478,7 @@ fn run() -> Result<i32, String> {
         && matches!(args[1].as_str(), "--help" | "-h")
     {
         println!(
-            "Usage: ypst compile [OPTIONS] INPUT [OUTPUT]\n\n  -o, --output PATH       Output path (.pdf selects PDF)\n      --site-root DIR     Write a site bundle\n      --assets-url URL    Public URL for shared site styles\n      --root DIR          Typst project root\n      --pdf               Output PDF (default: HTML)\n  -f, --format FORMAT     Explicit output format: html or pdf\n\nOther Typst compile options are forwarded; use -- to pass them through explicitly."
+            "Usage: ypst compile [OPTIONS] INPUT [OUTPUT]\n\n  -o, --output PATH       Output path (.pdf selects PDF)\n      --site-root DIR     Write a site bundle\n      --assets-url URL    Public URL for shared site styles\n      --root DIR          Typst project root\n      --pdf               Output PDF (default: HTML)\n  -f, --format FORMAT     Explicit output format: html or pdf\n\nOther Typst compile options are forwarded; use -- to pass them through explicitly.\nRepository and documentation: https://github.com/jay-waves/ypst"
         );
         return Ok(0);
     }

@@ -475,6 +475,48 @@ mod tests {
     }
 
     #[test]
+    fn named_muted_colors_apply_to_series_and_labels() {
+        std::thread::Builder::new()
+            .stack_size(16 * 1024 * 1024)
+            .spawn(|| {
+                let source = r#"
+import { barChartConfig, lineChartConfig } from 'chartist';
+import { toScene, renderToString } from 'chartist/server';
+import { trendLine, targetLine, valueLabels } from '@chartist-js/essentials';
+export default c => {
+  const data = {labels:['A','B'], series:[
+    {className:'tol-muted-rose', data:[4,5]},
+    {className:'tol-muted-indigo', data:[2,3]}
+  ]};
+  const bars = barChartConfig(data, {layers:{above:[valueLabels({barPosition:'inside-end'})]}});
+  const lines = lineChartConfig(data, {layers:{above:[trendLine(),targetLine({value:2,label:'Target',className:'tol-muted-olive'})]}});
+  c.innerHTML = [bars, lines].map(config => renderToString(toScene(config, {width:600,height:300}))).join('');
+};
+"#;
+                let svg = render_chart(source).unwrap();
+                let element = |class: &str, occurrence: usize| {
+                    svg.split('<')
+                        .filter(|part| part.contains(&format!("class=\"{class}\"")))
+                        .nth(occurrence)
+                        .unwrap()
+                        .split('>')
+                        .next()
+                        .unwrap()
+                };
+                assert!(element("ct-bar", 0).contains("stroke=\"#cc6677\""));
+                assert!(element("ct-bar", 2).contains("stroke=\"#332288\""));
+                assert!(element("ct-trend-line", 0).contains("stroke=\"#cc6677\""));
+                assert!(element("ct-trend-line", 1).contains("stroke=\"#332288\""));
+                assert!(element("ct-target-line tol-muted-olive", 0).contains("stroke=\"#999933\""));
+                assert!(element("ct-value-label tol-muted-rose ct-value-label-inside", 0).contains("fill=\"#202020\""));
+                assert!(element("ct-value-label tol-muted-indigo ct-value-label-inside", 0).contains("fill=\"#ffffff\""));
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
     fn essentials_layers_use_the_chart_theme_in_static_svg() {
         std::thread::Builder::new()
             .stack_size(16 * 1024 * 1024)
@@ -527,7 +569,7 @@ export default c => {
             let chart = fs::read_to_string(graph.path().join("0.svg")).unwrap();
             let mermaid = fs::read_to_string(graph.path().join("1.svg")).unwrap();
             assert!(chart.contains("ct-bar"));
-            assert!(chart.contains("#332288"));
+            assert!(chart.contains("#cc6677"));
             assert!(chart.contains("ct-axis-title"));
             assert!(chart.contains("Georgia"));
             assert!(mermaid.contains("<svg"));

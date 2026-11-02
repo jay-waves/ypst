@@ -22,6 +22,31 @@
 #import "@preview/headcount:0.1.1": dependent-numbering, reset-counter
 #import "html/html.typ" as _html
 
+// Fallbacks keep graph calls valid in plain Typst. The ypst preprocessor
+// replaces these calls with rendered SVG before Typst sees them.
+#let _graph-placeholder(kind, path, width, caption) = {
+    let body = box(
+        width: width,
+        inset: 8pt,
+        stroke: (paint: luma(180), thickness: 0.5pt),
+    )[
+        #text(weight: "bold")[#kind is not rendered]
+        #linebreak()
+        #text(size: 0.8em, fill: luma(100))[Run this document with ypst to render #kind from #path.]
+    ]
+    if caption == none { figure(body) } else { figure(body, caption: caption) }
+}
+
+/// A Mermaid graph source. `ypst` renders it to SVG; plain Typst shows a note.
+#let mermaid(path, width: 100%, caption: none) = _graph-placeholder(
+    "Mermaid", path, width, caption,
+)
+
+/// A Chartist JavaScript module. `ypst` renders it to SVG; plain Typst shows a note.
+#let chartist(path, width: 100%, caption: none) = _graph-placeholder(
+    "Chartist", path, width, caption,
+)
+
 #assert(
     sys.version >= version(0, 15, 0),
     message: "This theme requires Typst 0.15.0 or newer.",
