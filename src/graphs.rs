@@ -59,26 +59,38 @@ fn render_chart(source: &str) -> Result<String, String> {
         result.catch(&ctx).map_err(|e| e.to_string())
     })
 }
-fn render_mermaid(source: &str, index: usize) -> Result<String, String> {
-    let runtime = Runtime::new().map_err(|e| e.to_string())?;
+fn render_mermaid(source: &str, index: usize) -> Result<String, (String, Option<(usize, usize)>)> {
+    let runtime = Runtime::new().map_err(|e| (e.to_string(), None))?;
     runtime.set_memory_limit(256 * 1024 * 1024);
     runtime.set_max_stack_size(4 * 1024 * 1024);
     let deadline = Instant::now() + Duration::from_secs(10);
     runtime.set_interrupt_handler(Some(Box::new(move || Instant::now() >= deadline)));
-    let context = Context::full(&runtime).map_err(|e| e.to_string())?;
+    let context = Context::full(&runtime).map_err(|e| (e.to_string(), None))?;
     context.with(|ctx| {
         let result = (|| -> rquickjs::Result<String> {
             ctx.eval::<(), _>(super::PELE)?;
-            let func: Function = ctx.eval("(source,id) => pele.render(source,{idPrefix:id,autoDirection:false,maxWidth:900,images:false}).svg")?;
+            let func: Function = ctx.eval("(source,id) => { try { return JSON.stringify({svg: pele.render(source,{idPrefix:id,autoDirection:false,maxWidth:900,images:false}).svg}); } catch (e) { return JSON.stringify({error: e.message || String(e), code: e.code, line: e.line, column: e.column}); } }")?;
             func.call((source, format!("graph-{index}")))
         })();
-        result.catch(&ctx).map(|mut svg| {
+        let json = result.catch(&ctx).map_err(|e| (format!("mermaid: {e}"), None))?;
+        let data: serde_json::Value = serde_json::from_str(&json).map_err(|e| (format!("mermaid: {e}"), None))?;
+        if let Some(error) = data["error"].as_str() {
+            let location = data["line"].as_u64().zip(data["column"].as_u64())
+                .and_then(|(line, column)| Some((usize::try_from(line).ok()?, usize::try_from(column).ok()?)))
+                .filter(|(line, column)| *line > 0 && *column > 0);
+            let code = data["code"].as_str().filter(|code| matches!(*code, "syntax" | "semantic" | "unsupported-diagram" | "limit"));
+            let prefix = code.map_or_else(|| "Pele: ".to_owned(), |code| format!("Pele {code}: "));
+            let formatted = error.lines().enumerate().map(|(i, line)| if i == 0 { line.to_owned() } else { format!("  {line}") }).collect::<Vec<_>>().join("\n");
+            return Err((format!("{prefix}{formatted}"), location));
+        }
+        let mut svg = data["svg"].as_str().ok_or_else(|| ("mermaid returned no SVG".into(), None))?.to_owned();
+        Ok({
             for (name, value) in [("--_bg", "#ffffff"), ("--_fg", "#1f1f1f"), ("--_m", "#6e6e6e"), ("--_l", "#1f1f1f"), ("--_s", "#f3f3f3"), ("--_a", "#e6e6e6"), ("--_b", "#8a8a8a"), ("--_c", "#5b7bd5"), ("--_r", "4px"), ("--_fm", "monospace")] {
                 svg = svg.replace(&format!("var({name})"), value);
             }
             let defaults = regex::Regex::new(r"var\(--pele-[a-z-]+,\s*([^()]*)\)").unwrap();
             defaults.replace_all(&svg, "$1").into_owned()
-        }).map_err(|e| format!("mermaid: {e}"))
+        })
     })
 }
 
@@ -235,6 +247,7 @@ where
         let prefix = &source[..start];
         let line = prefix.bytes().filter(|b| *b == b'\n').count() + 1;
         let column = prefix.rsplit('\n').next().unwrap_or("").chars().count() + 1;
+        let mut error_location = None;
         let result = (|| -> Result<(), String> {
             let ast::Expr::Ident(name) = call.callee() else {
                 unreachable!()
@@ -328,7 +341,42 @@ where
                         .join("\n"),
                     _ => return Err("#mermaid expects a raw code block or string".into()),
                 };
-                render_mermaid(&graph, index)?
+                render_mermaid(&graph, index).map_err(|(message, location)| {
+                    if let Some((line, column)) = location {
+                        let mapped = source.get(range.clone()).and_then(|block| {
+                            let found = block.find(&graph)?;
+                            if block[found + graph.len()..].contains(&graph) {
+                                return None;
+                            }
+                            let part = graph.split('\n').nth(line.checked_sub(1)?)?;
+                            let line_start = part.as_ptr() as usize - graph.as_ptr() as usize;
+                            let mut units = 0;
+                            let mut bytes = 0;
+                            for ch in part.chars() {
+                                if units >= column - 1 {
+                                    break;
+                                }
+                                units += ch.len_utf16();
+                                bytes += ch.len_utf8();
+                            }
+                            (units == column - 1)
+                                .then_some(range.start + found + line_start + bytes)
+                        });
+                        if let Some(offset) = mapped {
+                            error_location = Some(offset);
+                        } else {
+                            return match message.split_once('\n') {
+                                Some((first, details)) => format!(
+                                    "{first} (fragment line {line}, column {column})\n{details}"
+                                ),
+                                None => {
+                                    format!("{message} (fragment line {line}, column {column})")
+                                }
+                            };
+                        }
+                    }
+                    message
+                })?
             };
             let filename = format!("{index}.svg");
             fs::write(dir.path().join(&filename), svg).map_err(|e| e.to_string())?;
@@ -348,6 +396,15 @@ where
             Ok(())
         })();
         result.map_err(|message| {
+            let (line, column) = error_location
+                .map(|at| {
+                    let prefix = &source[..at];
+                    (
+                        prefix.bytes().filter(|b| *b == b'\n').count() + 1,
+                        prefix.rsplit('\n').next().unwrap_or("").chars().count() + 1,
+                    )
+                })
+                .unwrap_or((line, column));
             format!(
                 "{}:{line}:{column}: error: {message}",
                 source_path.display()
@@ -374,6 +431,20 @@ mod tests {
             assert_eq!(result, "1,234.57");
         });
     }
+    #[test]
+    fn mermaid_error_points_into_raw_block() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = fs::canonicalize(temp.path()).unwrap();
+        let source =
+            "Before\n\n#mermaid(```mermaid\nsequenceDiagram\nAlice ->> Bob: hi\nfoo\n```)\n";
+        let error = preprocess(source, &root.join("note.typ"), &root).unwrap_err();
+        assert!(error.contains(":6:4: error: Pele syntax: "), "{error}");
+        assert!(
+            error.lines().skip(1).all(|line| line.starts_with("  ")),
+            "{error}"
+        );
+    }
+
     #[test]
     fn mermaid_accepts_literal_string_without_code_fence() {
         std::thread::Builder::new()
