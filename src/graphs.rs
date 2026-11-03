@@ -69,7 +69,11 @@ fn render_chart(source: &str) -> Result<String, String> {
         result.catch(&ctx).map_err(|e| e.to_string())
     })
 }
-fn render_mermaid(source: &str, index: usize) -> Result<String, (String, Option<(usize, usize)>)> {
+fn render_mermaid(
+    source: &str,
+    index: usize,
+    html: bool,
+) -> Result<String, (String, Option<(usize, usize)>)> {
     let runtime = render_runtime().map_err(|e| (e.to_string(), None))?;
     let context = Context::full(&runtime).map_err(|e| (e.to_string(), None))?;
     context.with(|ctx| {
@@ -90,6 +94,7 @@ fn render_mermaid(source: &str, index: usize) -> Result<String, (String, Option<
             return Err((format!("{prefix}{formatted}"), location));
         }
         let mut svg = data["svg"].as_str().ok_or_else(|| ("mermaid returned no SVG".into(), None))?.to_owned();
+        if html { return Ok(svg); }
         Ok({
             for (name, value) in [("--_bg", "#ffffff"), ("--_fg", "#1f1f1f"), ("--_m", "#6e6e6e"), ("--_l", "#1f1f1f"), ("--_s", "#f3f3f3"), ("--_a", "#e6e6e6"), ("--_b", "#8a8a8a"), ("--_c", "#5b7bd5"), ("--_r", "4px"), ("--_fm", "monospace")] {
                 svg = svg.replace(&format!("var({name})"), value);
@@ -198,11 +203,32 @@ pub fn preprocess(
     preprocess_with_fetch(source, source_path, root, &mut fetch_image)
 }
 
+pub fn preprocess_html(
+    source: &str,
+    source_path: &Path,
+    root: &Path,
+) -> Result<(String, Option<tempfile::TempDir>), String> {
+    preprocess_with_fetch_mode(source, source_path, root, &mut fetch_image, true)
+}
+
 fn preprocess_with_fetch<F>(
     source: &str,
     source_path: &Path,
     root: &Path,
     fetch: &mut F,
+) -> Result<(String, Option<tempfile::TempDir>), String>
+where
+    F: FnMut(&str) -> Result<Vec<u8>, String>,
+{
+    preprocess_with_fetch_mode(source, source_path, root, fetch, false)
+}
+
+fn preprocess_with_fetch_mode<F>(
+    source: &str,
+    source_path: &Path,
+    root: &Path,
+    fetch: &mut F,
+    html: bool,
 ) -> Result<(String, Option<tempfile::TempDir>), String>
 where
     F: FnMut(&str) -> Result<Vec<u8>, String>,
@@ -343,48 +369,66 @@ where
                         .join("\n"),
                     _ => return Err("#mermaid expects a raw code block or string".into()),
                 };
-                render_mermaid(&graph, index).map_err(|(message, location)| {
-                    if let Some((line, column)) = location {
-                        let mapped = source.get(range.clone()).and_then(|block| {
-                            let found = block.find(&graph)?;
-                            if block[found + graph.len()..].contains(&graph) {
-                                return None;
-                            }
-                            let part = graph.split('\n').nth(line.checked_sub(1)?)?;
-                            let line_start = part.as_ptr() as usize - graph.as_ptr() as usize;
-                            let mut units = 0;
-                            let mut bytes = 0;
-                            for ch in part.chars() {
-                                if units >= column - 1 {
-                                    break;
-                                }
-                                units += ch.len_utf16();
-                                bytes += ch.len_utf8();
-                            }
-                            (units == column - 1)
-                                .then_some(range.start + found + line_start + bytes)
-                        });
-                        if let Some(offset) = mapped {
-                            error_location = Some(offset);
+                render_mermaid(&graph, index, html)
+                    .map(|svg| {
+                        if html {
+                            svg.replace(
+                                &format!("graph-{index}"),
+                                &format!("{dir_name}-graph-{index}"),
+                            )
                         } else {
-                            return match message.split_once('\n') {
-                                Some((first, details)) => format!(
-                                    "{first} (fragment line {line}, column {column})\n{details}"
-                                ),
-                                None => {
-                                    format!("{message} (fragment line {line}, column {column})")
-                                }
-                            };
+                            svg
                         }
-                    }
-                    message
-                })?
+                    })
+                    .map_err(|(message, location)| {
+                        if let Some((line, column)) = location {
+                            let mapped = source.get(range.clone()).and_then(|block| {
+                                let found = block.find(&graph)?;
+                                if block[found + graph.len()..].contains(&graph) {
+                                    return None;
+                                }
+                                let part = graph.split('\n').nth(line.checked_sub(1)?)?;
+                                let line_start = part.as_ptr() as usize - graph.as_ptr() as usize;
+                                let mut units = 0;
+                                let mut bytes = 0;
+                                for ch in part.chars() {
+                                    if units >= column - 1 {
+                                        break;
+                                    }
+                                    units += ch.len_utf16();
+                                    bytes += ch.len_utf8();
+                                }
+                                (units == column - 1)
+                                    .then_some(range.start + found + line_start + bytes)
+                            });
+                            if let Some(offset) = mapped {
+                                error_location = Some(offset);
+                            } else {
+                                return match message.split_once('\n') {
+                                    Some((first, details)) => format!(
+                                        "{first} (fragment line {line}, column {column})\n{details}"
+                                    ),
+                                    None => {
+                                        format!("{message} (fragment line {line}, column {column})")
+                                    }
+                                };
+                            }
+                        }
+                        message
+                    })?
             };
             let filename = format!("{index}.svg");
             fs::write(dir.path().join(&filename), svg).map_err(|e| e.to_string())?;
             let file = serde_json::to_string(&format!("{dir_name}/{filename}"))
                 .map_err(|e| e.to_string())?;
-            let image = format!("image({file}, width: {})", width.unwrap_or("100%"));
+            let image = if html && name.as_str() == "mermaid" {
+                format!(
+                    "html.elem(\"div\", attrs: (\"data-ypst-pele\": {file}, \"style\": \"width:{}\"))",
+                    width.unwrap_or("100%")
+                )
+            } else {
+                format!("image({file}, width: {})", width.unwrap_or("100%"))
+            };
             let mut replacement = caption.map_or(image.clone(), |value| {
                 format!("figure({image}, caption: {value})")
             });

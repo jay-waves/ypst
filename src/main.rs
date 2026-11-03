@@ -760,6 +760,7 @@ fn run() -> Result<i32, String> {
     if !status.success() {
         return Ok(status.code().unwrap_or(1));
     }
+    prepared.inline_graphs(&target)?;
     svg_glyphs::optimize_file(&target)?;
     Ok(0)
 }
