@@ -461,7 +461,7 @@ body .markdown-alert.markdown-alert-caution .markdown-alert-title { color: var(-
 body .ypst-math-svg { overflow: visible; display: block; }
 body :is(p, h1, h2, h3, h4, h5, h6, li, strong, em, a, td, th) > svg {
   display: inline-block !important;
-  vertical-align: middle;
+  vertical-align: baseline;
 }
 
 body .display-equation {
