@@ -30,7 +30,7 @@ impl Prepared {
         site: Option<&super::site_images::SiteImages>,
     ) -> Result<Self, String> {
         let mut result = Self::default();
-        result.text = result.process(entry, root, html, site)?;
+        result.text = result.process(entry, root, html, site)?.0;
         Ok(result)
     }
     fn process(
@@ -39,7 +39,7 @@ impl Prepared {
         root: &Path,
         html: bool,
         site: Option<&super::site_images::SiteImages>,
-    ) -> Result<String, String> {
+    ) -> Result<(String, bool), String> {
         if !self.active.insert(path.to_owned()) {
             return Err(format!("cyclic include/import: {}", path.display()));
         }
@@ -81,9 +81,8 @@ impl Prepared {
             let copy = if let Some(copy) = self.copies.get(&target) {
                 copy.clone()
             } else {
-                let text = self.process(&target, root, html, site)?;
-                let original = fs::read_to_string(&target).map_err(|e| e.to_string())?;
-                let copy = if text == original {
+                let (text, changed) = self.process(&target, root, html, site)?;
+                let copy = if !changed {
                     target.clone()
                 } else {
                     let mut file = tempfile::Builder::new()
@@ -130,7 +129,8 @@ impl Prepared {
             text
         };
         self.active.remove(path);
-        Ok(text)
+        let changed = text != parsed.text();
+        Ok((text, changed))
     }
 }
 

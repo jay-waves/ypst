@@ -13,16 +13,7 @@
     const children = [...root.childNodes];
     root.replaceChildren();
 
-    const updateAvailability = () => {
-        root.querySelectorAll('.heading-section').forEach(section => {
-            const summary = section.querySelector(':scope > .heading-summary');
-            const disabled = Boolean(section.parentElement.closest('.heading-section.is-collapsed'));
-            summary.tabIndex = disabled ? -1 : 0;
-            summary.setAttribute('aria-expanded', String(!section.classList.contains('is-collapsed')));
-            if (disabled) summary.setAttribute('aria-disabled', 'true');
-            else summary.removeAttribute('aria-disabled');
-        });
-    };
+    const updateAvailability = () => syncHeadingSections(root);
 
     children.forEach(node => {
         const heading = node.nodeType === Node.ELEMENT_NODE && /^H[1-6]$/.test(node.tagName) ? node : null;

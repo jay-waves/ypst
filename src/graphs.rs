@@ -33,12 +33,18 @@ fn raw_content(node: &SyntaxNode) -> Option<String> {
 }
 const CSS_NUMBER_FORMAT: &str = include_str!("../vendor/intl.js");
 
-fn render_chart(source: &str) -> Result<String, String> {
-    let runtime = Runtime::new().map_err(|e| e.to_string())?;
+// Keep each invocation isolated while sharing the resource-limit policy.
+fn render_runtime() -> rquickjs::Result<Runtime> {
+    let runtime = Runtime::new()?;
     runtime.set_memory_limit(256 * 1024 * 1024);
     runtime.set_max_stack_size(4 * 1024 * 1024);
     let deadline = Instant::now() + Duration::from_secs(10);
     runtime.set_interrupt_handler(Some(Box::new(move || Instant::now() >= deadline)));
+    Ok(runtime)
+}
+
+fn render_chart(source: &str) -> Result<String, String> {
+    let runtime = render_runtime().map_err(|e| e.to_string())?;
     let context = Context::full(&runtime).map_err(|e| e.to_string())?;
     context.with(|ctx| {
         let result = (|| -> rquickjs::Result<String> {
@@ -64,11 +70,7 @@ fn render_chart(source: &str) -> Result<String, String> {
     })
 }
 fn render_mermaid(source: &str, index: usize) -> Result<String, (String, Option<(usize, usize)>)> {
-    let runtime = Runtime::new().map_err(|e| (e.to_string(), None))?;
-    runtime.set_memory_limit(256 * 1024 * 1024);
-    runtime.set_max_stack_size(4 * 1024 * 1024);
-    let deadline = Instant::now() + Duration::from_secs(10);
-    runtime.set_interrupt_handler(Some(Box::new(move || Instant::now() >= deadline)));
+    let runtime = render_runtime().map_err(|e| (e.to_string(), None))?;
     let context = Context::full(&runtime).map_err(|e| (e.to_string(), None))?;
     context.with(|ctx| {
         let result = (|| -> rquickjs::Result<String> {
@@ -129,11 +131,7 @@ pub fn highlight_code(source: &str) -> Result<String, String> {
     if blocks.is_empty() {
         return Ok(source.to_owned());
     }
-    let runtime = Runtime::new().map_err(|e| e.to_string())?;
-    runtime.set_memory_limit(256 * 1024 * 1024);
-    runtime.set_max_stack_size(4 * 1024 * 1024);
-    let deadline = Instant::now() + Duration::from_secs(10);
-    runtime.set_interrupt_handler(Some(Box::new(move || Instant::now() >= deadline)));
+    let runtime = render_runtime().map_err(|e| e.to_string())?;
     let context = Context::full(&runtime).map_err(|e| e.to_string())?;
     context.with(|ctx| {
         let result = (|| -> rquickjs::Result<String> {

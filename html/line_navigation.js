@@ -8,7 +8,7 @@
         if (!Number.isSafeInteger(line)) return;
         const scroll = () => {
             if (token !== generation) return;
-            const nodes = [...document.querySelectorAll('.source-line-anchor[data-line]')];
+            const nodes = document.querySelectorAll('.source-line-anchor[data-line]');
             let first = null, previous = null;
             for (const node of nodes) {
                 const n = Number(node.dataset.line);
@@ -22,15 +22,7 @@
                 if (node.tagName === 'DETAILS') node.open = true;
                 if (node.classList.contains('heading-section')) node.classList.remove('is-collapsed');
             }
-            document.querySelectorAll('.heading-section').forEach(section => {
-                const summary = section.querySelector(':scope > .heading-summary');
-                if (!summary) return;
-                const disabled = Boolean(section.parentElement.closest('.heading-section.is-collapsed'));
-                summary.tabIndex = disabled ? -1 : 0;
-                summary.setAttribute('aria-expanded', String(!section.classList.contains('is-collapsed')));
-                if (disabled) summary.setAttribute('aria-disabled', 'true');
-                else summary.removeAttribute('aria-disabled');
-            });
+            syncHeadingSections(document);
             (target.closest('h1,h2,h3,h4,h5,h6,p') || target).scrollIntoView({ block: 'start' });
         };
         scroll();

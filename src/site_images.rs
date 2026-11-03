@@ -34,6 +34,7 @@ impl SiteImages {
                 let args: Vec<_> = call.args().items().collect();
                 if let Some(ast::Arg::Pos(ast::Expr::Str(path))) = args.first() {
                     let mut attrs = Vec::new();
+                    let mut dimensions = Vec::new();
                     let mut supported = true;
                     for arg in args.iter().skip(1) {
                         if let ast::Arg::Named(named) = arg {
@@ -43,7 +44,11 @@ impl SiteImages {
                                     .find(named.expr().span())
                                     .ok_or("missing image argument")?
                                     .range();
-                                attrs.push(format!("{}: repr({})", name.as_str(), &source[range]));
+                                dimensions.push(format!(
+                                    "\"{}:\" + repr({})",
+                                    name.as_str(),
+                                    &source[range]
+                                ));
                             } else if name.as_str() == "alt" {
                                 let range = node
                                     .find(named.expr().span())
@@ -104,24 +109,11 @@ impl SiteImages {
                                 ),
                             );
                             // Dimensions belong in CSS: HTML width/height attributes do not accept pt/%.
-                            let dimensions: Vec<_> = attrs
-                                .iter()
-                                .filter(|s| s.starts_with("width:") || s.starts_with("height:"))
-                                .cloned()
-                                .collect();
-                            attrs.retain(|s| !s.starts_with("width:") && !s.starts_with("height:"));
                             if !dimensions.is_empty() {
-                                let parts = dimensions
-                                    .iter()
-                                    .map(|s| {
-                                        let (key, value) = s.split_once(": ").unwrap();
-                                        format!(
-                                            "{} + {value}",
-                                            serde_json::to_string(&format!("{key}:")).unwrap()
-                                        )
-                                    })
-                                    .collect::<Vec<_>>();
-                                attrs.push(format!("style: ({},).join(\";\")", parts.join(",")));
+                                attrs.push(format!(
+                                    "style: ({},).join(\";\")",
+                                    dimensions.join(",")
+                                ));
                             }
                             let mut replacement =
                                 format!("html.elem(\"img\", attrs: ({},))", attrs.join(", "));

@@ -15,3 +15,16 @@ const sameDocumentFragment = (link) => {
         return null;
     }
 };
+
+// Keep keyboard and accessibility state aligned after folding or navigation.
+const syncHeadingSections = root => {
+    root.querySelectorAll('.heading-section').forEach(section => {
+        const summary = section.querySelector(':scope > .heading-summary');
+        if (!summary) return;
+        const disabled = Boolean(section.parentElement.closest('.heading-section.is-collapsed'));
+        summary.tabIndex = disabled ? -1 : 0;
+        summary.setAttribute('aria-expanded', String(!section.classList.contains('is-collapsed')));
+        if (disabled) summary.setAttribute('aria-disabled', 'true');
+        else summary.removeAttribute('aria-disabled');
+    });
+};

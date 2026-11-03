@@ -6,17 +6,8 @@ use std::{
     fs,
     io::Write,
     path::Path,
-    sync::OnceLock,
+    sync::LazyLock,
 };
-
-fn regex(pattern: &'static str) -> &'static Regex {
-    static CACHE: OnceLock<std::sync::Mutex<HashMap<&'static str, &'static Regex>>> =
-        OnceLock::new();
-    let mut cache = CACHE.get_or_init(Default::default).lock().unwrap();
-    cache
-        .entry(pattern)
-        .or_insert_with(|| Box::leak(Box::new(Regex::new(pattern).unwrap())))
-}
 
 fn valid_svg(svg: &str) -> bool {
     let mut reader = quick_xml::Reader::from_str(svg);
@@ -33,11 +24,20 @@ fn optimize(html: &str) -> String {
     if html.contains("data-equation-glyphs=\"\"") {
         return html.to_owned();
     }
-    let equation = regex(r"(?s)<svg\b.*?</svg>");
-    let defs = regex(r"(?s)<defs>(.*?)</defs>");
-    let symbol = regex(r#"(?s)<symbol\b[^>]*\bid="(g[0-9A-Fa-f]{32})"[^>]*>.*?</symbol>"#);
-    let ids = regex(r#"\bid="([^"]+)"#);
-    let refs = regex(r##"((?:xlink:)?href)="#([^"]+)""##);
+    static EQUATION: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?s)<svg\b.*?</svg>").unwrap());
+    let equation = &*EQUATION;
+    static DEFS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)<defs>(.*?)</defs>").unwrap());
+    let defs = &*DEFS;
+    static SYMBOL: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r#"(?s)<symbol\b[^>]*\bid="(g[0-9A-Fa-f]{32})"[^>]*>.*?</symbol>"#).unwrap()
+    });
+    let symbol = &*SYMBOL;
+    static IDS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"\bid="([^"]+)"#).unwrap());
+    let ids = &*IDS;
+    static REFS: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r##"((?:xlink:)?href)="#([^"]+)""##).unwrap());
+    let refs = &*REFS;
     let mut used: HashSet<String> = ids.captures_iter(html).map(|c| c[1].to_owned()).collect();
     let mut symbols: HashMap<String, String> = HashMap::new();
     let mut pooled = Vec::new();
@@ -113,7 +113,8 @@ fn optimize(html: &str) -> String {
     if pooled.is_empty() {
         return html.to_owned();
     }
-    let Some(body) = regex(r"<body\b[^>]*>").find(&result) else {
+    static BODY: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<body\b[^>]*>").unwrap());
+    let Some(body) = BODY.find(&result) else {
         return html.to_owned();
     };
     let pool = format!(

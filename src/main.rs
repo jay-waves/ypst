@@ -10,6 +10,7 @@ use std::{
     io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
     process::{Command, ExitCode, Stdio},
+    sync::LazyLock,
 };
 
 const MONASPACE_CSS: &str = include_str!("../html/monaspace.css");
@@ -117,8 +118,9 @@ fn remap_diagnostic(
     source_lines: usize,
     offset: usize,
 ) -> String {
-    let pattern = Regex::new(r"^(.*):(\d+):(\d+): (error|warning|help):").unwrap();
-    let Some(capture) = pattern.captures(line) else {
+    static PATTERN: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"^(.*):(\d+):(\d+): (error|warning|help):").unwrap());
+    let Some(capture) = PATTERN.captures(line) else {
         return line.into();
     };
     let name = capture[1].strip_prefix(r"\\?\").unwrap_or(&capture[1]);
@@ -174,6 +176,31 @@ fn run_compiler(
     } else {
         compiler.status().map_err(|e| e.to_string())
     }
+}
+
+fn changed_entry(
+    source: &Path,
+    original: &str,
+    processed: &str,
+) -> Result<Option<tempfile::NamedTempFile>, String> {
+    if processed == original {
+        return Ok(None);
+    }
+    let mut file = tempfile::Builder::new()
+        .prefix(".typst-graphs-entry-")
+        .suffix(".typ")
+        .tempfile_in(source.parent().ok_or("source has no parent")?)
+        .map_err(|e| e.to_string())?;
+    file.write_all(processed.as_bytes())
+        .map_err(|e| e.to_string())?;
+    Ok(Some(file))
+}
+
+fn validate_output(source: &Path, output: &Path) -> Result<(), String> {
+    if output == source || fs::canonicalize(output).ok().as_deref() == Some(source) {
+        return Err("output must not overwrite source".into());
+    }
+    Ok(())
 }
 
 fn shared_assets(root: &Path) -> Result<PathBuf, String> {
@@ -559,96 +586,23 @@ fn run() -> Result<i32, String> {
         return Err("source is outside --root".into());
     }
     let pdf = format_opt.as_deref() == Some("pdf");
+    if pdf && site.is_some() {
+        return Err("--site-root is only supported for HTML".into());
+    }
+    if format_opt
+        .as_deref()
+        .is_some_and(|f| !matches!(f, "html" | "pdf"))
+    {
+        return Err("ypst HTML mode supports --format html or pdf".into());
+    }
+    let assets_url = assets_url.as_deref().map(asset_url).transpose()?;
+
     if !pdf
         && positional
             .get(1)
             .is_some_and(|s| s.to_ascii_lowercase().ends_with(".pdf"))
     {
         return Err(".pdf output conflicts with the explicit output format".into());
-    }
-    let site_images = if let Some(site) = &site {
-        let cwd = env::current_dir().map_err(|e| e.to_string())?;
-        let site = if site.is_absolute() {
-            site.clone()
-        } else {
-            cwd.join(site)
-        };
-        let mut page = if let Some(output) = positional.get(1) {
-            let output = PathBuf::from(output);
-            if output.is_absolute() {
-                output
-            } else {
-                cwd.join(output)
-            }
-        } else {
-            default_site_output(&site, &project_root, &source)?
-        };
-        if page
-            .extension()
-            .is_some_and(|e| e.eq_ignore_ascii_case("html"))
-        {
-            page.set_extension("bundle");
-        }
-        Some(site_images::SiteImages { site, page })
-    } else {
-        None
-    };
-    let prepared = std::thread::scope(|scope| {
-        std::thread::Builder::new()
-            .name("typst-preprocess".into())
-            .stack_size(16 * 1024 * 1024)
-            .spawn_scoped(scope, || {
-                preprocess::Prepared::with_site_images(
-                    &source,
-                    &project_root,
-                    !pdf,
-                    site_images.as_ref(),
-                )
-            })
-            .map_err(|e| e.to_string())?
-            .join()
-            .map_err(|_| "preprocessor thread failed".to_string())?
-    })?;
-    let processed = &prepared.text;
-    if pdf {
-        if site.is_some() {
-            return Err("--site-root is only supported for HTML".into());
-        }
-        let mut entry = None;
-        if processed != &source_text {
-            let mut temp = tempfile::Builder::new()
-                .prefix(".typst-graphs-entry-")
-                .suffix(".typ")
-                .tempfile_in(source.parent().unwrap())
-                .map_err(|e| e.to_string())?;
-            temp.write_all(processed.as_bytes())
-                .map_err(|e| e.to_string())?;
-            entry = Some(temp);
-        }
-        let mut cmd = Command::new("typst");
-        cmd.arg("compile")
-            .arg(entry.as_ref().map(|e| e.path()).unwrap_or(&source));
-        let default_output = source.with_extension("pdf");
-        cmd.arg(positional.get(1).map(Path::new).unwrap_or(&default_output));
-        if !pass
-            .iter()
-            .any(|a| a == "--diagnostic-format" || a.starts_with("--diagnostic-format="))
-        {
-            cmd.args(["--diagnostic-format", "short"]);
-        }
-        cmd.args(&pass);
-        let status = run_compiler(
-            &mut cmd,
-            entry.as_ref().map(|e| e.path()),
-            &positional[0],
-            source_lines,
-            0,
-            &pass,
-        )?;
-        return Ok(status.code().unwrap_or(1));
-    }
-    if format_opt.as_deref().is_some_and(|f| f != "html") {
-        return Err("ypst HTML mode supports --format html or pdf".into());
     }
     let cwd = env::current_dir().map_err(|e| e.to_string())?;
     let site = site.map(|p| if p.is_absolute() { p } else { cwd.join(p) });
@@ -658,11 +612,9 @@ fn run() -> Result<i32, String> {
     } else if let Some(root) = &site {
         default_site_output(root, &project_root, &source)?
     } else {
-        source.with_extension("html")
+        source.with_extension(if pdf { "pdf" } else { "html" })
     };
-    if output == source || fs::canonicalize(&output).ok().as_ref() == Some(&source) {
-        return Err("output must not overwrite source".into());
-    }
+    validate_output(&source, &output)?;
     if site.is_some()
         && output
             .extension()
@@ -681,6 +633,50 @@ fn run() -> Result<i32, String> {
             return Err("bundle output must not contain the shared assets directory".into());
         }
     }
+    let site_images = site.as_ref().map(|site| site_images::SiteImages {
+        site: site.clone(),
+        page: output.clone(),
+    });
+    let prepared = std::thread::scope(|scope| {
+        std::thread::Builder::new()
+            .name("typst-preprocess".into())
+            .stack_size(16 * 1024 * 1024)
+            .spawn_scoped(scope, || {
+                preprocess::Prepared::with_site_images(
+                    &source,
+                    &project_root,
+                    !pdf,
+                    site_images.as_ref(),
+                )
+            })
+            .map_err(|e| e.to_string())?
+            .join()
+            .map_err(|_| "preprocessor thread failed".to_string())?
+    })?;
+    let processed = &prepared.text;
+    if pdf {
+        let entry = changed_entry(&source, &source_text, processed)?;
+        let mut cmd = Command::new("typst");
+        cmd.arg("compile")
+            .arg(entry.as_ref().map(|e| e.path()).unwrap_or(&source));
+        cmd.arg(&output);
+        if !pass
+            .iter()
+            .any(|a| a == "--diagnostic-format" || a.starts_with("--diagnostic-format="))
+        {
+            cmd.args(["--diagnostic-format", "short"]);
+        }
+        cmd.args(&pass);
+        let status = run_compiler(
+            &mut cmd,
+            entry.as_ref().map(|e| e.path()),
+            &positional[0],
+            source_lines,
+            0,
+            &pass,
+        )?;
+        return Ok(status.code().unwrap_or(1));
+    }
     let target = if site.is_some() {
         output.join("index.html")
     } else {
@@ -689,11 +685,11 @@ fn run() -> Result<i32, String> {
     fs::create_dir_all(target.parent().ok_or("invalid output")?).map_err(|e| e.to_string())?;
     let mut compiler = Command::new("typst");
     compiler.arg("compile");
-    let mut entry = None;
+    let entry;
     if let Some(root) = &site {
         let assets = shared_assets(root)?;
         let prefix = if let Some(url) = assets_url {
-            asset_url(&url)?
+            url
         } else {
             format!(
                 "{}/",
@@ -719,16 +715,7 @@ fn run() -> Result<i32, String> {
         ]);
         entry = Some(temp);
     } else {
-        if processed != &source_text {
-            let mut temp = tempfile::Builder::new()
-                .prefix(".typst-graphs-entry-")
-                .suffix(".typ")
-                .tempfile_in(source.parent().unwrap())
-                .map_err(|e| e.to_string())?;
-            temp.write_all(processed.as_bytes())
-                .map_err(|e| e.to_string())?;
-            entry = Some(temp);
-        }
+        entry = changed_entry(&source, &source_text, processed)?;
         compiler.args(["--format", "html", "--features", "html"]);
     }
     if !pass
@@ -807,6 +794,27 @@ fn main() -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn output_cannot_alias_source_and_unchanged_entries_need_no_copy() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("note.typ");
+        fs::write(&source, "hello").unwrap();
+        let source = fs::canonicalize(source).unwrap();
+        assert!(validate_output(&source, &source).is_err());
+        assert!(validate_output(&source, &source.with_extension("pdf")).is_ok());
+        assert!(changed_entry(&source, "hello", "hello").unwrap().is_none());
+        let copy = changed_entry(&source, "hello", "changed").unwrap().unwrap();
+        assert_eq!(copy.path().parent(), source.parent());
+        assert_eq!(fs::read_to_string(copy.path()).unwrap(), "changed");
+        assert_eq!(fs::read_to_string(&source).unwrap(), "hello");
+        #[cfg(unix)]
+        {
+            let alias = dir.path().join("alias.pdf");
+            std::os::unix::fs::symlink(&source, &alias).unwrap();
+            assert!(validate_output(&source, &alias).is_err());
+        }
+    }
 
     #[test]
     fn shared_assets_separate_font_and_repair_corruption() {
