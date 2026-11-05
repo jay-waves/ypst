@@ -86,7 +86,7 @@ PDF uses native footnotes. In HTML, footnotes expand when clicked and headings
 are collapsible. Inline and display equations use SVG; display equations
 are not selectable as math. PDF and HTML layouts may differ.
 
-The template exports `chartist(path, width: 100%, caption: none)` and `mermaid(path, width: 100%, caption: none)` from `lib.typ`. Keep graph sources in external files: Chartist takes a `.js` module and Mermaid takes a `.mmd` file. See `examples/charts.typ`, `examples/chart.js`, and `examples/workflow.mmd`.
+The template exports `chartist(path, width: 100%, caption: none)` and `mermaid(path, width: auto, caption: none)` from `lib.typ`. Mermaid defaults to natural image sizing (`auto`) in PDF; HTML retains its full-width container. Explicit widths override these defaults. Keep graph sources in external files: Chartist takes a `.js` module and Mermaid takes a `.mmd` file. See `examples/charts.typ`, `examples/chart.js`, and `examples/workflow.mmd`.
 
 When compiled with `ypst`, these calls are preprocessed into static SVG images for PDF and HTML. Chartist modules must be inside `--root`, import only `chartist`, `chartist/server`, and `@chartist-js/essentials`, and synchronously render an SVG in their default export. Output is static and does not run `hydrate`. Preprocessing follows literal local `#include` and `#import` paths within `--root`, reuses repeated references, and rejects cycles. Changed files use temporary sibling copies so relative paths keep their meaning; source directories must be writable. Original files are not modified.
 

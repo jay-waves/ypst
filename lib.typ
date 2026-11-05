@@ -38,7 +38,7 @@
 }
 
 /// A Mermaid graph source. `ypst` renders it to SVG; plain Typst shows a note.
-#let mermaid(path, width: 100%, caption: none) = _graph-placeholder(
+#let mermaid(path, width: auto, caption: none) = _graph-placeholder(
     "Mermaid", path, width, caption,
 )
 

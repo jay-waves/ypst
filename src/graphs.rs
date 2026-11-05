@@ -79,8 +79,10 @@ fn render_mermaid(
     context.with(|ctx| {
         let result = (|| -> rquickjs::Result<String> {
             ctx.eval::<(), _>(super::PELE)?;
-            let func: Function = ctx.eval("(source,id) => { try { return JSON.stringify({svg: pele.render(source,{idPrefix:id,autoDirection:false,maxWidth:900,images:false}).svg}); } catch (e) { return JSON.stringify({error: e.message || String(e), code: e.code, line: e.line, column: e.column}); } }")?;
-            func.call((source, format!("graph-{index}")))
+            // Match the PDF body font stack in lib.typ; HTML uses its theme CSS.
+            let font_family = if html { "sans-serif" } else { "Georgia, Libertinus Serif, New Computer Modern, Source Han Serif, serif" };
+            let func: Function = ctx.eval("(source,id,fontFamily) => { try { return JSON.stringify({svg: pele.render(source,{idPrefix:id,fontFamily,autoDirection:false,maxWidth:900,images:false}).svg}); } catch (e) { return JSON.stringify({error: e.message || String(e), code: e.code, line: e.line, column: e.column}); } }")?;
+            func.call((source, format!("graph-{index}"), font_family))
         })();
         let json = result.catch(&ctx).map_err(|e| (format!("mermaid: {e}"), None))?;
         let data: serde_json::Value = serde_json::from_str(&json).map_err(|e| (format!("mermaid: {e}"), None))?;
@@ -427,7 +429,8 @@ where
                     width.unwrap_or("100%")
                 )
             } else {
-                format!("image({file}, width: {})", width.unwrap_or("100%"))
+                let default_width = if name.as_str() == "mermaid" { "auto" } else { "100%" };
+                format!("image({file}, width: {})", width.unwrap_or(default_width))
             };
             let mut replacement = caption.map_or(image.clone(), |value| {
                 format!("figure({image}, caption: {value})")
