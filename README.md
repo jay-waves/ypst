@@ -193,3 +193,28 @@ ypst stop
 `serve INPUT` compiles once into `<system temp>/cmrak-preview/<project>/typ` and prints only its preview URL to stdout on success. Compiler errors go to stderr, with short diagnostics mapped to the original source. It starts or reuses the native service on `127.0.0.1:8765`, shared with `cmrak`; both tools can stop that service. The browser reloads when the generated HTML changes. Pass `--fragment section` (with or without `#`) to navigate open preview pages to that URL fragment after a successful compilation via SSE. Failed compilations send no notification. `serve` hosts an existing directory in the foreground. A service hosting another directory on the same port is not reused.
 
 This follows tmcompiler's stream convention. The server uses SSE for compilation notifications and HTTP revision polling for other file changes. Typst's human-format diagnostics are passed through and do not have temporary paths remapped.
+
+## One-command install or update
+
+Always downloads and replaces the current executable from the maintained release (Linux x86_64 / Windows x64). Then runs `ypst install` to refresh the template. Typst CLI must be installed separately. The default installation requires no administrator privileges.
+
+Linux:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/jay-waves/ypst/main/install.sh | sh
+```
+
+Windows PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/jay-waves/ypst/main/install.ps1 | iex
+```
+
+Linux installs into `~/.local/bin`; Windows installs into `%LOCALAPPDATA%/Programs/ypst`. Neither script modifies PATH; add the installation directory yourself if needed. Set `INSTALL_DIR` to override the destination. The release tag is updated in place by CI, so rerunning downloads the newest published build even when the version number stays the same.
+
+To choose a Windows destination while using `iex`:
+
+```powershell
+$env:INSTALL_DIR = 'D:\Tools'
+irm https://raw.githubusercontent.com/jay-waves/ypst/main/install.ps1 | iex
+```
