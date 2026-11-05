@@ -79,8 +79,8 @@ fn render_mermaid(
     context.with(|ctx| {
         let result = (|| -> rquickjs::Result<String> {
             ctx.eval::<(), _>(super::PELE)?;
-            // Match the PDF body font stack in lib.typ; HTML uses its theme CSS.
-            let font_family = if html { "sans-serif" } else { "Georgia, Libertinus Serif, New Computer Modern, Source Han Serif, serif" };
+            // Match the body font stack in lib.typ and provide a standalone SVG fallback.
+            let font_family = "Georgia, Libertinus Serif, New Computer Modern, Source Han Serif, serif";
             let func: Function = ctx.eval("(source,id,fontFamily) => { try { return JSON.stringify({svg: pele.render(source,{idPrefix:id,fontFamily,autoDirection:false,maxWidth:900,images:false}).svg}); } catch (e) { return JSON.stringify({error: e.message || String(e), code: e.code, line: e.line, column: e.column}); } }")?;
             func.call((source, format!("graph-{index}"), font_family))
         })();

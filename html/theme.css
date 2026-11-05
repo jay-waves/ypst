@@ -521,7 +521,7 @@ body :is(a, button, summary, [role="button"]):focus-visible { outline: 2px solid
   --pele-surface-alt: var(--md-code-bg);
   --pele-border: var(--md-muted);
   --pele-accent: var(--md-accent);
-  --pele-font: var(--md-font-sans);
+  --pele-font: var(--md-font);
   --pele-font-mono: var(--md-font-mono);
   max-width: 100%;
   height: auto;
