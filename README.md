@@ -104,7 +104,16 @@ ypst compile note.typ                 # writes note.html
 ypst compile note.typ output.html     # choose an output file
 ```
 
-The output embeds the theme, scripts, and images. Literal HTTP(S) URLs are supported in `#image("https://example.com/image.png")`: `ypst` downloads them before compilation, with a 15-second timeout and 10 MiB response limit. The same URL is fetched once per compilation; later compilations fetch it again. PDF uses the downloaded file and standalone HTML embeds the image. Supported downloads are PNG, JPEG, GIF, WebP, SVG, and PDF images. Like the graph directives, URL preprocessing covers the entry and its literal local include/import dependencies. Repeated SVG frame glyphs are shared within each HTML page when this reduces its size. The Rust wrapper does not perform the legacy document-setting precheck. Place `#set document(...)`
+For remote images that also compile with plain Typst, import `imagit` from the template:
+
+```typst
+#import "@local/ypst-template:0.1.0": imagit
+#imagit("https://example.com/image.png", width: 80%, alt: "Example")
+```
+
+Plain Typst silently omits remote `imagit` calls; `ypst` downloads and renders them in PDF, standalone HTML, and site output. Use native `image` for local paths; `image(URL)` is no longer downloaded or rewritten by `ypst`. Remote preprocessing requires a direct `imagit("literal URL", ...)` call (no aliases, module-qualified calls, or computed URLs). Native image options are preserved. Download errors still fail `ypst` compilation.
+
+The output embeds the theme, scripts, and images. Literal HTTP(S) URLs are supported in `#imagit("https://example.com/image.png")`: `ypst` downloads them before compilation, with a 15-second timeout and 10 MiB response limit. The same URL is fetched once per compilation; later compilations fetch it again. PDF uses the downloaded file and standalone HTML embeds the image. Supported downloads are PNG, JPEG, GIF, WebP, SVG, and PDF images. Like the graph directives, URL preprocessing covers the entry and its literal local include/import dependencies. Repeated SVG frame glyphs are shared within each HTML page when this reduces its size. The Rust wrapper does not perform the legacy document-setting precheck. Place `#set document(...)`
 before `#show: template`. Pass Typst options after `--`, for example
 `-- --root . --diagnostic-format human`. Site mode uses a temporary entry. Short-format diagnostics (the default) map its source locations back to the original file; human-format diagnostics retain Typst’s temporary entry locations.
 

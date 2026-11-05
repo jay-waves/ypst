@@ -30,6 +30,9 @@
     } else { body }
 }
 
+/// Remote images are silent in plain Typst; ypst downloads literal HTTP(S) URLs.
+#let imagit(url, ..options) = []
+
 // Fallbacks keep graph calls valid in plain Typst. The ypst preprocessor
 // replaces these calls with rendered SVG before Typst sees them.
 #let _graph-placeholder(kind, path, width, caption) = {

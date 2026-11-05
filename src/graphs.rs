@@ -210,7 +210,7 @@ where
     ) {
         if let Some(call) = node.get().cast::<ast::FuncCall>()
             && let ast::Expr::Ident(name) = call.callee()
-            && (name.as_str() == "mermaid" || (name.as_str() == "image" && call.args().items().find_map(|arg| match arg { ast::Arg::Pos(value) => Some(value), _ => None }).is_some_and(|value| matches!(value, ast::Expr::Str(text) if { let lower = text.get().to_ascii_lowercase(); lower.starts_with("https://") || lower.starts_with("http://") }))))
+            && (name.as_str() == "mermaid" || (name.as_str() == "imagit" && call.args().items().find_map(|arg| match arg { ast::Arg::Pos(value) => Some(value), _ => None }).is_some_and(|value| matches!(value, ast::Expr::Str(text) if { let lower = text.get().to_ascii_lowercase(); lower.starts_with("https://") || lower.starts_with("http://") }))))
         {
             calls.push((node.range(), call));
             return;
@@ -248,7 +248,7 @@ where
             let ast::Expr::Ident(name) = call.callee() else {
                 unreachable!()
             };
-            if name.as_str() == "image" {
+            if name.as_str() == "imagit" {
                 let Some(ast::Expr::Str(value)) = call.args().items().find_map(|arg| match arg {
                     ast::Arg::Pos(value) => Some(value),
                     _ => None,
@@ -277,6 +277,11 @@ where
                 let span =
                     range_of(&linked, value.to_untyped()).ok_or("cannot locate image URL")?;
                 edits.push((span, replacement));
+                if name.as_str() == "imagit" {
+                    let callee = range_of(&linked, name.to_untyped())
+                        .ok_or("cannot locate imagit function")?;
+                    edits.push((callee, "image".to_owned()));
+                }
                 return Ok(());
             }
             let mut positional = Vec::new();
@@ -488,7 +493,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let root = fs::canonicalize(dir.path()).unwrap();
         let input = root.join("note.typ");
-        let source = "#image(\"https://example.test/a?x=1\", width: 50%, alt: \"A\")\n#image(\"https://example.test/a?x=1\")\n`#image(\"https://ignored.test\")`";
+        let source = "#imagit(\"https://example.test/a?x=1\", width: 50%, alt: \"A\")\n#imagit(\"https://example.test/a?x=1\")\n`#imagit(\"https://ignored.test\")`";
         let mut calls = 0;
         let mut fetch = |url: &str| {
             calls += 1;
@@ -498,9 +503,50 @@ mod tests {
         let (output, temp) = preprocess_with_fetch(source, &input, &root, &mut fetch).unwrap();
         assert_eq!(calls, 1);
         assert!(output.contains("width: 50%, alt: \"A\""));
-        assert!(output.contains("`#image(\"https://ignored.test\")`"));
+        assert!(output.contains("`#imagit(\"https://ignored.test\")`"));
         assert_eq!(output.matches("0.svg").count(), 2);
         assert!(temp.unwrap().path().join("0.svg").is_file());
+    }
+    #[test]
+    fn imagit_downloads_remote_images_and_preserves_other_calls() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = fs::canonicalize(dir.path()).unwrap();
+        let source = r#"#imagit("https://example.test/a", width: 50%, alt: "A")
+#image("https://example.test/a")
+#imagit("local.svg")
+#imagit(path)
+`#imagit("https://ignored.test")`
+#let pic = imagit("https://example.test/a")"#;
+        let mut calls = 0;
+        let mut fetch = |_: &str| {
+            calls += 1;
+            Ok(b"<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>".to_vec())
+        };
+        let (output, temp) =
+            preprocess_with_fetch(source, &root.join("note.typ"), &root, &mut fetch).unwrap();
+        assert_eq!(calls, 1);
+        assert_eq!(output.matches("0.svg").count(), 2);
+        assert!(output.starts_with("#image("));
+        assert!(output.contains("width: 50%, alt: \"A\""));
+        assert!(output.contains("#let pic = image("));
+        assert!(output.contains("#imagit(\"local.svg\")"));
+        assert!(output.contains("#imagit(path)"));
+        assert!(output.contains("#image(\"https://example.test/a\")"));
+        assert!(output.contains("`#imagit(\"https://ignored.test\")`"));
+        assert!(temp.unwrap().path().join("0.svg").is_file());
+    }
+    #[test]
+    fn native_url_images_are_not_preprocessed() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = r#"#image("https://example.test/a")"#;
+        let mut fetch = |_: &str| -> Result<Vec<u8>, String> {
+            panic!("native image must not fetch remote URLs")
+        };
+        let (output, temp) =
+            preprocess_with_fetch(source, &dir.path().join("note.typ"), dir.path(), &mut fetch)
+                .unwrap();
+        assert_eq!(output, source);
+        assert!(temp.is_none());
     }
     #[test]
     fn unsupported_image_data_fails_before_compilation() {
@@ -508,7 +554,7 @@ mod tests {
         let root = fs::canonicalize(dir.path()).unwrap();
         let mut fetch = |_: &str| Ok(b"not an image".to_vec());
         let result = preprocess_with_fetch(
-            "#image(\"https://example.test/a\")",
+            "#imagit(\"https://example.test/a\")",
             &root.join("n.typ"),
             &root,
             &mut fetch,
