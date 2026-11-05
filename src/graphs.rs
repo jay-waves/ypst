@@ -1,4 +1,4 @@
-use rquickjs::{CatchResultExt, Context, Function, Module, Object, Runtime};
+use rquickjs::{CatchResultExt, Context, Function, Runtime};
 use std::{
     fs,
     path::Path,
@@ -8,14 +8,6 @@ use typst_syntax::{
     LinkedNode, Source, SyntaxNode,
     ast::{self, AstNode},
 };
-
-const CHARTIST: &str = include_str!("../vendor/renderer.js");
-const CHARTIST_MODULE: &str = include_str!("../vendor/chartist-module.js");
-const CHARTIST_SERVER: &str = include_str!("../vendor/chartist-server-module.js");
-const ESSENTIALS: &str = include_str!("../vendor/chartist-essentials-module.js");
-const ESSENTIALS_CSS: &str = include_str!("../vendor/chartist-essentials.css");
-const CSS: &str = include_str!("../vendor/chartist.css");
-const CHART_STYLE: &str = include_str!("../chartist.css");
 
 fn range_of(root: &LinkedNode<'_>, wanted: &SyntaxNode) -> Option<std::ops::Range<usize>> {
     root.find(wanted.span()).map(|node| node.range())
@@ -43,32 +35,6 @@ fn render_runtime() -> rquickjs::Result<Runtime> {
     Ok(runtime)
 }
 
-fn render_chart(source: &str) -> Result<String, String> {
-    let runtime = render_runtime().map_err(|e| e.to_string())?;
-    let context = Context::full(&runtime).map_err(|e| e.to_string())?;
-    context.with(|ctx| {
-        let result = (|| -> rquickjs::Result<String> {
-            ctx.eval::<(), _>(CSS_NUMBER_FORMAT)?;
-            ctx.eval::<(), _>(CHARTIST)?;
-            ctx.globals().set("__chartistCss", CSS)?;
-            ctx.globals().set("__chartistTheme", CHART_STYLE)?;
-            ctx.globals().set("__essentialsCss", ESSENTIALS_CSS)?;
-            ctx.eval::<(), _>("globalThis.__vizRenderSvg = scene => __vizChartistServer.renderToString(__vizChartistServer.applyStyles(scene, [__chartistCss, __essentialsCss, __chartistTheme]));")?;
-            Module::declare(ctx.clone(), "chartist", CHARTIST_MODULE)?.eval()?.1.finish::<()>()?;
-            Module::declare(ctx.clone(), "@chartist-js/essentials", ESSENTIALS)?.eval()?.1.finish::<()>()?;
-            let server = CHARTIST_SERVER.replace("export const renderToString=globalThis.__vizChartistServer.renderToString;", "export const renderToString=globalThis.__vizRenderSvg;");
-            Module::declare(ctx.clone(), "chartist/server", server)?.eval()?.1.finish::<()>()?;
-            let prepare: Function = ctx.globals().get("prepareViz")?;
-            let container: Object = prepare.call(())?;
-            let (module, promise) = Module::declare(ctx.clone(), "chart", source)?.eval()?;
-            promise.finish::<()>()?;
-            let function: Function = module.get("default")?;
-            let run: Function = ctx.globals().get("runViz")?;
-            run.call((function, container))
-        })();
-        result.catch(&ctx).map_err(|e| e.to_string())
-    })
-}
 fn render_mermaid(
     source: &str,
     index: usize,
@@ -228,7 +194,7 @@ where
 fn preprocess_with_fetch_mode<F>(
     source: &str,
     source_path: &Path,
-    root: &Path,
+    _root: &Path,
     fetch: &mut F,
     html: bool,
 ) -> Result<(String, Option<tempfile::TempDir>), String>
@@ -244,7 +210,7 @@ where
     ) {
         if let Some(call) = node.get().cast::<ast::FuncCall>()
             && let ast::Expr::Ident(name) = call.callee()
-            && (matches!(name.as_str(), "chartist" | "mermaid") || (name.as_str() == "image" && call.args().items().find_map(|arg| match arg { ast::Arg::Pos(value) => Some(value), _ => None }).is_some_and(|value| matches!(value, ast::Expr::Str(text) if { let lower = text.get().to_ascii_lowercase(); lower.starts_with("https://") || lower.starts_with("http://") }))))
+            && (name.as_str() == "mermaid" || (name.as_str() == "image" && call.args().items().find_map(|arg| match arg { ast::Arg::Pos(value) => Some(value), _ => None }).is_some_and(|value| matches!(value, ast::Expr::Str(text) if { let lower = text.get().to_ascii_lowercase(); lower.starts_with("https://") || lower.starts_with("http://") }))))
         {
             calls.push((node.range(), call));
             return;
@@ -339,27 +305,7 @@ where
             if positional.len() != 1 {
                 return Err(format!("#{} expects one input", name.as_str()));
             }
-            let svg = if name.as_str() == "chartist" {
-                let ast::Expr::Str(path) = positional[0] else {
-                    return Err("#chartist expects a literal JS file path".into());
-                };
-                let relative = path.get();
-                let file = fs::canonicalize(source_path.parent().unwrap().join(relative.as_str()))
-                    .map_err(|e| format!("chartist {relative}: {e}"))?;
-                if !file.starts_with(root) {
-                    return Err("chartist file is outside --root".into());
-                }
-                let script = fs::read_to_string(&file)
-                    .map_err(|e| format!("cannot read chartist {relative:?}: {e}"))?;
-                let markup =
-                    render_chart(&script).map_err(|e| format!("chartist {relative:?}: {e}"))?;
-                let start = markup.find("<svg").ok_or("chartist must render an SVG")?;
-                let end = markup
-                    .rfind("</svg>")
-                    .ok_or("chartist returned invalid SVG")?
-                    + 6;
-                markup[start..end].to_owned()
-            } else {
+            let svg = {
                 let graph = match positional[0] {
                     ast::Expr::Str(value) => value.get().to_string(),
                     ast::Expr::ContentBlock(block) => raw_content(block.to_untyped())
@@ -423,18 +369,13 @@ where
             fs::write(dir.path().join(&filename), svg).map_err(|e| e.to_string())?;
             let file = serde_json::to_string(&format!("{dir_name}/{filename}"))
                 .map_err(|e| e.to_string())?;
-            let image = if html && name.as_str() == "mermaid" {
+            let image = if html {
                 format!(
                     "html.elem(\"div\", attrs: (\"data-ypst-pele\": {file}, \"style\": \"width:{}\"))",
                     width.unwrap_or("100%")
                 )
             } else {
-                let default_width = if name.as_str() == "mermaid" {
-                    "auto"
-                } else {
-                    "100%"
-                };
-                format!("image({file}, width: {})", width.unwrap_or(default_width))
+                format!("image({file}, width: {})", width.unwrap_or("auto"))
             };
             let mut replacement = caption.map_or(image.clone(), |value| {
                 format!("figure({image}, caption: {value})")
@@ -524,103 +465,20 @@ mod tests {
     }
 
     #[test]
-    fn named_muted_colors_apply_to_series_and_labels() {
-        std::thread::Builder::new()
-            .stack_size(16 * 1024 * 1024)
-            .spawn(|| {
-                let source = r#"
-import { barChartConfig, lineChartConfig } from 'chartist';
-import { toScene, renderToString } from 'chartist/server';
-import { trendLine, targetLine, valueLabels } from '@chartist-js/essentials';
-export default c => {
-  const data = {labels:['A','B'], series:[
-    {className:'tol-muted-rose', data:[4,5]},
-    {className:'tol-muted-indigo', data:[2,3]}
-  ]};
-  const bars = barChartConfig(data, {layers:{above:[valueLabels({barPosition:'inside-end'})]}});
-  const lines = lineChartConfig(data, {layers:{above:[trendLine(),targetLine({value:2,label:'Target',className:'tol-muted-olive'})]}});
-  c.innerHTML = [bars, lines].map(config => renderToString(toScene(config, {width:600,height:300}))).join('');
-};
-"#;
-                let svg = render_chart(source).unwrap();
-                let element = |class: &str, occurrence: usize| {
-                    svg.split('<')
-                        .filter(|part| part.contains(&format!("class=\"{class}\"")))
-                        .nth(occurrence)
-                        .unwrap()
-                        .split('>')
-                        .next()
-                        .unwrap()
-                };
-                assert!(element("ct-bar", 0).contains("stroke=\"#cc6677\""));
-                assert!(element("ct-bar", 2).contains("stroke=\"#332288\""));
-                assert!(element("ct-trend-line", 0).contains("stroke=\"#cc6677\""));
-                assert!(element("ct-trend-line", 1).contains("stroke=\"#332288\""));
-                assert!(element("ct-target-line tol-muted-olive", 0).contains("stroke=\"#999933\""));
-                assert!(element("ct-value-label tol-muted-rose ct-value-label-inside", 0).contains("fill=\"#202020\""));
-                assert!(element("ct-value-label tol-muted-indigo ct-value-label-inside", 0).contains("fill=\"#ffffff\""));
-            })
-            .unwrap()
-            .join()
-            .unwrap();
-    }
-
-    #[test]
-    fn essentials_layers_use_the_chart_theme_in_static_svg() {
-        std::thread::Builder::new()
-            .stack_size(16 * 1024 * 1024)
-            .spawn(|| {
-                let source = r#"
-import { lineChartConfig } from 'chartist';
-import { toScene, renderToString } from 'chartist/server';
-import { trendLine, targetLine, valueLabels } from '@chartist-js/essentials';
-export default c => {
-  const config = lineChartConfig({labels:['A','B','C'],series:[[1,3,2],[2,4,3]]},
-    {layers:{above:[trendLine(), targetLine({value:2,label:'Target'}), valueLabels()]}});
-  c.innerHTML = renderToString(toScene(config, {width:600,height:300}));
-};
-"#;
-                let svg = render_chart(source).unwrap();
-                let element = |class: &str, occurrence: usize| {
-                    svg.split('<')
-                        .filter(|part| part.contains(&format!("class=\"{class}\"")))
-                        .nth(occurrence)
-                        .unwrap()
-                        .split('>')
-                        .next()
-                        .unwrap()
-                };
-                assert!(element("ct-trend-line", 0).contains("stroke=\"#332288\""));
-                assert!(element("ct-trend-line", 1).contains("stroke=\"#44aa99\""));
-                assert!(element("ct-target-line", 0).contains("stroke=\"#666666\""));
-                assert!(element("ct-target-label", 0).contains("fill=\"#666666\""));
-            })
-            .unwrap()
-            .join()
-            .unwrap();
-    }
-
-    #[test]
     fn preprocesses_static_graph_calls_without_touching_raw_text() {
         std::thread::Builder::new().stack_size(16 * 1024 * 1024).spawn(|| {
             let dir = tempfile::tempdir().unwrap();
             let root = fs::canonicalize(dir.path()).unwrap();
             let input = root.join("note.typ");
-            fs::write(root.join("chart.js"), include_str!("../examples/chart.js")).unwrap();
-            let source = "// #chartist(\"missing.js\")\n#chartist(\"chart.js\", caption: [Chart], width: 70%)\n#mermaid(caption: [Flow])[\n```mermaid\ngraph LR\n A --> B\n```\n]\n`#chartist(\"no.js\")`\n";
+            let source = "// #mermaid(\"ignored\")\n#mermaid(width: 70%, caption: [Flow])[\n```mermaid\ngraph LR\n A --> B\n```\n]\n`#mermaid(\"ignored\")`\n";
             let (out, graphs) = preprocess(source, &input, &root).unwrap();
             assert!(out.contains("figure(image("));
             assert!(out.contains("width: 70%"));
             assert!(out.contains("caption: [Flow]"));
-            assert!(out.contains("`#chartist(\"no.js\")`"));
+            assert!(out.contains("`#mermaid(\"ignored\")`"));
             assert_eq!(source.lines().count(), out.lines().count());
             let graph = graphs.unwrap();
-            let chart = fs::read_to_string(graph.path().join("0.svg")).unwrap();
-            let mermaid = fs::read_to_string(graph.path().join("1.svg")).unwrap();
-            assert!(chart.contains("ct-bar"));
-            assert!(chart.contains("#cc6677"));
-            assert!(chart.contains("ct-axis-title"));
-            assert!(chart.contains("Georgia"));
+            let mermaid = fs::read_to_string(graph.path().join("0.svg")).unwrap();
             assert!(mermaid.contains("<svg"));
             assert!(!mermaid.contains("var(--"));
         }).unwrap().join().unwrap();
@@ -679,7 +537,7 @@ export default c => {
     }
     #[test]
     fn leaves_plain_source_untouched() {
-        let source = "`#mermaid(\"example\")`\n// #chartist(\"example.js\")\n";
+        let source = "`#mermaid(\"example\")`\n// #mermaid(\"example\")\n";
         let (output, dir) = preprocess(source, Path::new("note.typ"), Path::new(".")).unwrap();
         assert_eq!(source, output);
         assert!(dir.is_none());

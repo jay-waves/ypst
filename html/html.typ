@@ -22,8 +22,9 @@
     // HTML follows the browser; the public theme parameter controls PDF only.
     let theme = "auto"
     // Keep SVG rendering; box gives frames inline paragraph semantics in Typst 0.15.
-    show math.equation.where(block: false): it => box(html.frame(it))
+    show math.equation.where(block: false): it => context { if target() == "html" { box(html.frame(it)) } else { it } }
     show math.equation.where(block: true): it => context {
+        if target() != "html" { return it }
         set text(fill: rgb("#363733"))
         let formula = html.frame(math.equation(math.display(it.body), block: false, numbering: none))
         html.div(class: "display-equation", [
@@ -49,7 +50,8 @@
     show h: it => context {
         if target() == "html" { "\u{2002}" } else { it }
     }
-    show align: it => {
+    show align: it => context {
+        if target() != "html" { return it }
         let horizontal = it.alignment.x
         let css-align = if horizontal == center {
             "center"
@@ -65,11 +67,11 @@
         html.div(style: "text-align: " + css-align, it.body)
     }
     // Pad is also discarded by the exporter, including nested theorem text.
-    show pad: it => it.body
-    show grid.cell: it => it.body
-    show grid: it => it.children.map(html.div).join()
-    show stack: it => it.children.map(html.div).join()
-    show place: it => it.body
+    show pad: it => context { if target() == "html" { it.body } else { it } }
+    show grid.cell: it => context { if target() == "html" { it.body } else { it } }
+    show grid: it => context { if target() == "html" { it.children.map(html.div).join() } else { it } }
+    show stack: it => context { if target() == "html" { it.children.map(html.div).join() } else { it } }
+    show place: it => context { if target() == "html" { it.body } else { it } }
     // During bundle document rendering the contextual target is HTML, so the
     // wrapper marks bundle mode with a private compiler input.
     let bundled = sys.inputs.at("ypst-template-bundle", default: "false") == "true"

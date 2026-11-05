@@ -16,7 +16,7 @@ $ physica.pdv(f, x, y, [1, 2]), quad physica.tensor(T, -mu, +nu) $
 
 = CeTZ drawing
 
-// CeTZ produces paged graphics. html.frame exports them as SVG in HTML.
+// ypst adapts the CeTZ import for HTML automatically; PDF uses native drawing.
 #let drawing = cetz.canvas({
   import cetz.draw: *
   line((0, 0), (4, 0), stroke: rgb("#62666b"))
@@ -27,7 +27,7 @@ $ physica.pdv(f, x, y, [1, 2]), quad physica.tensor(T, -mu, +nu) $
 })
 
 #figure(
-  context if target() == "html" { html.frame(drawing) } else { drawing },
+  drawing,
   caption: [Two nodes connected by a line.],
 )
 

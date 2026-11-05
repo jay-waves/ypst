@@ -463,7 +463,7 @@ fn run() -> Result<i32, String> {
         }
         Some("--help") | Some("-h") if args.len() == 1 => {
             println!(
-                "Usage: ypst <compile|serve|stop|install> [OPTIONS]\n\ncompile INPUT [OUTPUT] [--pdf | --site-root DIR] [-- TYPST_OPTIONS]\nserve INPUT [--root DIR] [--fragment FRAGMENT] | --site-root DIR [--port PORT]\nstop\ninstall\n\nRepository and documentation: https://github.com/jay-waves/ypst\nChartist Paul Tol Muted series colors: className: 'tol-muted-rose' (for example).\nNames: indigo, cyan, teal, green, olive, sand, rose, wine, purple, grey."
+                "Usage: ypst <compile|serve|stop|install> [OPTIONS]\n\ncompile INPUT [OUTPUT] [--pdf | --site-root DIR] [-- TYPST_OPTIONS]\nserve INPUT [--root DIR] [--fragment FRAGMENT] | --site-root DIR [--port PORT]\nstop\ninstall\n\nRepository and documentation: https://github.com/jay-waves/ypst"
             );
             return Ok(0);
         }

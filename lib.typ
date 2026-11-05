@@ -15,12 +15,20 @@
 /// - `footnote(body)`: a native PDF footnote and an inline HTML disclosure.
 /// - `theorem` / `lemma` / `corollary`: theorem, lemma, and corollary environments.
 /// - `definition` / `proof`: definition and proof environments.
+/// - `cetz-frame(body)`: render a CeTZ canvas in both HTML and PDF.
 ///
 /// HTML export: `ypst compile path/to/note.typ note.html` from the checkout.
 /// The recommended interfaces are listed above; other top-level names remain importable.
 
 #import "@preview/headcount:0.1.1": dependent-numbering, reset-counter
 #import "html/html.typ" as _html
+
+/// Render paged drawing content as SVG in HTML and unchanged in PDF.
+#let cetz-frame(body) = context {
+    if target() == "html" {
+        html.frame(body)
+    } else { body }
+}
 
 // Fallbacks keep graph calls valid in plain Typst. The ypst preprocessor
 // replaces these calls with rendered SVG before Typst sees them.
@@ -40,11 +48,6 @@
 /// A Mermaid graph source. `ypst` renders it to SVG; plain Typst shows a note.
 #let mermaid(path, width: auto, caption: none) = _graph-placeholder(
     "Mermaid", path, width, caption,
-)
-
-/// A Chartist JavaScript module. `ypst` renders it to SVG; plain Typst shows a note.
-#let chartist(path, width: 100%, caption: none) = _graph-placeholder(
-    "Chartist", path, width, caption,
 )
 
 #assert(

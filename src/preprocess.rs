@@ -79,17 +79,25 @@ impl Prepared {
         let source = fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
         let parsed = Source::detached(source.clone());
         let mut references = Vec::new();
-        fn visit(node: &LinkedNode<'_>, out: &mut Vec<(std::ops::Range<usize>, String)>) {
+        fn visit(
+            node: &LinkedNode<'_>,
+            out: &mut Vec<(std::ops::Range<usize>, String, Option<String>)>,
+        ) {
             let expr = node
                 .get()
                 .cast::<ast::ModuleInclude>()
                 .map(|v| v.source())
                 .or_else(|| node.get().cast::<ast::ModuleImport>().map(|v| v.source()));
             if let Some(ast::Expr::Str(value)) = expr
-                && !value.get().starts_with('@')
                 && let Some(target) = node.find(value.span())
             {
-                out.push((target.range(), value.get().to_string()));
+                let bare = node
+                    .get()
+                    .cast::<ast::ModuleImport>()
+                    .filter(|import| import.imports().is_none() && import.new_name().is_none())
+                    .and_then(|import| import.bare_name().ok())
+                    .map(|name| name.to_string());
+                out.push((target.range(), value.get().to_string(), bare));
             }
             for child in node.children() {
                 visit(&child, out);
@@ -97,7 +105,35 @@ impl Prepared {
         }
         visit(&LinkedNode::new(parsed.root()), &mut references);
         let mut edits = Vec::new();
-        for (range, name) in references {
+        for (range, name, bare) in references {
+            if name.starts_with('@') {
+                if html && name.starts_with("@preview/cetz:") {
+                    // Let Typst resolve bindings and aliases normally. Re-export the
+                    // package through a shim instead of guessing which calls are CeTZ.
+                    let package = serde_json::to_string(&name).map_err(|e| e.to_string())?;
+                    let mut shim = tempfile::Builder::new()
+                        .prefix(".ypst-cetz-")
+                        .suffix(".typ")
+                        .tempfile_in(path.parent().unwrap())
+                        .map_err(|e| e.to_string())?;
+                    write!(shim, "#import {package}: *\n#let _ypst-original-canvas = canvas\n#let canvas(..args) = context {{\n  if target() == \"html\" {{\n    html.frame(_ypst-original-canvas(..args))\n  }} else {{\n    _ypst-original-canvas(..args)\n  }}\n}}\n")
+                        .map_err(|e| e.to_string())?;
+                    let relative = shim
+                        .path()
+                        .strip_prefix(root)
+                        .map_err(|e| e.to_string())?
+                        .to_string_lossy()
+                        .replace('\\', "/");
+                    let mut replacement = serde_json::to_string(&format!("/{relative}"))
+                        .map_err(|e| e.to_string())?;
+                    if let Some(name) = bare {
+                        replacement.push_str(&format!(" as {name}"));
+                    }
+                    edits.push((range, replacement));
+                    self.files.push(shim);
+                }
+                continue;
+            }
             let target = if name.starts_with('/') {
                 root.join(name.trim_start_matches('/'))
             } else {
@@ -137,10 +173,12 @@ impl Prepared {
                     .map_err(|e| e.to_string())?
                     .to_string_lossy()
                     .replace('\\', "/");
-                edits.push((
-                    range,
-                    serde_json::to_string(&format!("/{relative}")).map_err(|e| e.to_string())?,
-                ));
+                let mut replacement =
+                    serde_json::to_string(&format!("/{relative}")).map_err(|e| e.to_string())?;
+                if let Some(name) = bare {
+                    replacement.push_str(&format!(" as {name}"));
+                }
+                edits.push((range, replacement));
             }
         }
         let mut text = source;
@@ -174,6 +212,79 @@ impl Prepared {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn cetz_imports_render_in_html_without_changing_pdf_sources() {
+        if std::process::Command::new("typst")
+            .arg("--version")
+            .output()
+            .is_err()
+        {
+            return;
+        }
+        let root = fs::canonicalize(env!("CARGO_MANIFEST_DIR")).unwrap();
+        let dir = tempfile::tempdir_in(&root).unwrap();
+        let entry = dir.path().join("note.typ");
+        let imports = [
+            (
+                "#import \"@preview/cetz:0.5.2\"",
+                "cetz.canvas",
+                "cetz.draw",
+            ),
+            (
+                "#import \"@preview/cetz:0.5.2\" as ct",
+                "ct.canvas",
+                "ct.draw",
+            ),
+            (
+                "#import \"@preview/cetz:0.5.2\": canvas as paint, draw",
+                "paint",
+                "draw",
+            ),
+            ("#import \"@preview/cetz:0.5.2\": *", "canvas", "draw"),
+        ];
+        for (import, canvas, draw) in imports {
+            let source = format!(
+                "#import \"/lib.typ\": template\n#show: template\n{import}\n#let render = {canvas}\n#let drawing = render({{ import {draw}: *; circle((0, 0), radius: 1, fill: rgb(\"#12ab34\")); content((0, 0), [$x$]) }})\n#figure(drawing, caption: [CeTZ test])\n#html.frame(drawing)\n"
+            );
+            fs::write(&entry, &source).unwrap();
+            for html in [true, false] {
+                // The explicit frame is HTML-only; keep the PDF fixture native.
+                let input = if html {
+                    source.clone()
+                } else {
+                    source.replace("#html.frame(drawing)", "")
+                };
+                fs::write(&entry, &input).unwrap();
+                if html {
+                    fs::write(dir.path().join("body.typ"), &input).unwrap();
+                    fs::write(&entry, "#include \"body.typ\"").unwrap();
+                }
+                let prepared = Prepared::new(&entry, &root, html).unwrap();
+                if !html {
+                    assert_eq!(prepared.text, input);
+                }
+                let compiled = dir.path().join("prepared.typ");
+                fs::write(&compiled, &prepared.text).unwrap();
+                let output = dir.path().join(if html { "out.html" } else { "out.pdf" });
+                let mut command = std::process::Command::new("typst");
+                command.arg("compile").arg("--root").arg(&root);
+                if html {
+                    command.args(["--features", "html"]);
+                }
+                let result = command.arg(&compiled).arg(&output).output().unwrap();
+                let diagnostics = String::from_utf8_lossy(&result.stderr);
+                assert!(result.status.success(), "{import}: {diagnostics}");
+                assert!(!diagnostics.contains("curve was ignored"), "{diagnostics}");
+                assert!(!diagnostics.contains("move was ignored"), "{diagnostics}");
+                if html {
+                    let document = fs::read_to_string(&output).unwrap();
+                    assert_eq!(document.matches("fill=\"#12ab34\"").count(), 2, "{import}");
+                } else {
+                    assert!(fs::metadata(output).unwrap().len() > 0);
+                }
+            }
+        }
+    }
     #[test]
     fn html_diagrams_keep_theme_variables_and_inline_generated_svg() {
         let dir = tempfile::tempdir().unwrap();
