@@ -429,7 +429,11 @@ where
                     width.unwrap_or("100%")
                 )
             } else {
-                let default_width = if name.as_str() == "mermaid" { "auto" } else { "100%" };
+                let default_width = if name.as_str() == "mermaid" {
+                    "auto"
+                } else {
+                    "100%"
+                };
                 format!("image({file}, width: {})", width.unwrap_or(default_width))
             };
             let mut replacement = caption.map_or(image.clone(), |value| {
