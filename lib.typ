@@ -58,16 +58,13 @@
     message: "This theme requires Typst 0.15.0 or newer.",
 )
 
-#let _code_fonts = (
-    "Monaspace Neon",
-    "Source Han Sans",
-)
+// Code leaves missing glyphs, including Chinese, to Typst font fallback.
+#let _code_fonts = ("Monaspace Neon",)
 
 // Missing glyphs fall back to other fonts registered with the compiler.
 #let _math_fonts = ("New Computer Modern Math",)
 #let _serif_fonts = ("Georgia", "Libertinus Serif", "New Computer Modern")
 #let _cjk_serif_fonts = ("Source Han Serif",)
-#let _cjk_sans_fonts = ("Source Han Sans",)
 
 // Each role owns both script paths; weights are (regular, strong).
 #let _typography = (
@@ -76,12 +73,12 @@
         cjk: (font: _cjk_serif_fonts, weights: (500, 700)),
     ),
     heading: (
-        latin: (font: _cjk_sans_fonts, weights: (600, 800)),
-        cjk: (font: _cjk_sans_fonts, weights: (600, 800)),
+        latin: (font: _serif_fonts + _cjk_serif_fonts, weights: (700, 700)),
+        cjk: (font: _cjk_serif_fonts, weights: (700, 700)),
     ),
     code: (
         latin: (font: _code_fonts, weights: (400, 700)),
-        cjk: (font: _cjk_sans_fonts, weights: (400, 700)),
+        cjk: (font: _code_fonts, weights: (400, 700)),
     ),
     table: (
         latin: (font: _serif_fonts + _cjk_serif_fonts, weights: (450, 700)),
@@ -234,7 +231,16 @@
 #let _statement_kinds = ("theorem", "lemma", "corollary", "definition", "proof")
 #let _statement_numbering = dependent-numbering("1.1")
 #let _figure_numbering = dependent-numbering("1.1a")
-#let _equation_numbering = dependent-numbering("(1.1)")
+// Record the heading style at each equation, so references use the target's
+// scope even when the reference itself has different heading settings.
+#let _equation_prefix = <ypst-template.equation-prefix>
+#let _equation_numbering(..numbers) = {
+    if heading.numbering == none {
+        numbering("(1)", ..numbers)
+    } else {
+        numbering("(1.1)", counter(heading).get().first(), ..numbers)
+    }
+}
 
 // A small renderer shared by all statement environments. Each kind has its
 // own native counter. Optional positional names retain theorem([Name])[...].
@@ -285,10 +291,18 @@
         _reset_numbered(keys.slice(1), body)
     }
 }
-#let _chapter_counters(body) = _reset_numbered(
-    (math.equation, figure.where(kind: image), figure.where(kind: table))
-        + _statement_kinds.map(kind => figure.where(kind: kind)), body,
-)
+#let _chapter_counters(body) = {
+    show math.equation: it => context {
+        if it.block and it.numbering == _equation_numbering {
+            [#metadata(heading.numbering != none)#_equation_prefix]
+        }
+        it
+    }
+    _reset_numbered(
+        (math.equation, figure.where(kind: image), figure.where(kind: table))
+            + _statement_kinds.map(kind => figure.where(kind: kind)), body,
+    )
+}
 
 // Native refs retain parentheses returned by a numbering function. Equations
 // display them, but references use the plain number at the target location.
@@ -300,8 +314,11 @@
     let loc = equation.location()
     let supplement = if it.supplement == auto { equation.supplement } else { it.supplement }
     if type(supplement) == function { supplement = supplement(equation) }
+    let prefixed = query(selector(_equation_prefix).after(loc)).first().value
+    let chapter = if prefixed { counter(heading).at(loc).slice(0, 1) } else { () }
     link(loc, [#if supplement not in (none, []) [#supplement~]#numbering(
-        "1.1", counter(heading).at(loc).first(), ..counter(math.equation).at(loc),
+        "1.1", ..chapter,
+        ..counter(math.equation).at(loc),
     )])
 }
 

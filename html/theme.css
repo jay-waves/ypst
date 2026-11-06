@@ -19,7 +19,6 @@
   --md-alert-warning: #9a6700;
   --md-alert-tip: #1a7f37;
   --md-font-serif: Georgia, "Source Han Serif CN", "Source Han Serif", serif;
-  --md-font-sans: "Source Han Sans CN", "Source Han Sans", system-ui, sans-serif;
   --md-font-mono: "Monaspace Neon", Consolas, Menlo, ui-monospace, monospace;
   --md-code-font-size: 13px;
   --md-font: var(--md-font-serif);
@@ -236,7 +235,7 @@ body h6 {
   font-family: var(--md-font-serif);
   margin-top: 1.5rem;
   margin-bottom: 1rem;
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1.25;
 }
 

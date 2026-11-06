@@ -21,12 +21,6 @@ files = ["fonts/SourceHanSerifCN-Regular.otf", "fonts/SourceHanSerifCN-SemiBold.
 license = "fonts/LICENSE-SourceHanSerif.txt"
 project = "https://github.com/adobe-fonts/source-han-serif"
 
-[tool.ypst-template.assets.source-han-sans]
-version = "2.005"
-files = ["fonts/SourceHanSansCN-Regular.otf", "fonts/SourceHanSansCN-Medium.otf", "fonts/SourceHanSansCN-Bold.otf"]
-license = "fonts/LICENSE-SourceHanSans.txt"
-project = "https://github.com/adobe-fonts/source-han-sans"
-
 [tool.ypst-template.assets.monaspace]
 version = "1.400"
 files = ["fonts/MonaspaceNeon-Regular.otf", "fonts/MonaspaceNeon-Bold.otf", "html/monaspace.css"]

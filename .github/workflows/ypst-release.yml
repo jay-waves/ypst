@@ -65,7 +65,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p font-assets/Georgia release-assets
-          cp fonts/*.otf fonts/LICENSE-*.txt fonts/NOTICE-*.txt font-assets/
+          cp fonts/SourceHanSerifCN-*.otf fonts/MonaspaceNeon-*.otf fonts/NewCMMath-Regular.otf font-assets/
+          cp fonts/LICENSE-SourceHanSerif.txt fonts/LICENSE-Monaspace.txt fonts/NOTICE-NewCMMath.txt font-assets/
+          cp fonts/README.md fonts/download-georgia.py font-assets/
           curl --fail --location --retry 3 --output font-assets/Georgia/georgi32.exe 'https://downloads.sourceforge.net/project/corefonts/the%20fonts/final/georgi32.exe'
           curl --fail --location --retry 3 --output font-assets/Georgia/EULA.html 'https://corefonts.sourceforge.net/eula.htm'
           python3 -c "import runpy; runpy.run_path('fonts/download-georgia.py')['cabinet'](open('font-assets/Georgia/georgi32.exe', 'rb').read())"

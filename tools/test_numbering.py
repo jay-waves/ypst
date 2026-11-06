@@ -80,3 +80,76 @@ class NumberingTests(unittest.TestCase):
                                      ["(1.1)", "(1.2)", "(2.1)"])
                     self.assertIn('class="proof-qed"', document)
                     self.assertNotIn("<figure><div class=\"theorem-environment", document)
+
+    def test_equation_prefix_follows_target_scope(self):
+        source_text = r'''#import "../lib.typ": *
+#show: template
+#front-matter[
+= Preface
+$ p = 0 $ <preface>
+Forward: @chapter.
+]
+= Chapter
+$ a = 1 $ <chapter>
+#front-matter[
+= Interlude
+$ b = 2 $ <interlude>
+Cross: @chapter; @resumed.
+]
+$ c = 3 $ <resumed>
+#[
+#set heading(numbering: none)
+$ d = 4 $ <plain>
+#[
+#set math.equation(numbering: none)
+$ e = 5 $
+]
+#[
+#set math.equation(numbering: "(A)")
+$ f = 6 $ <custom>
+]
+$ g = 7 $ <plain-next>
+]
+$ h = 8 $ <after>
+= Next chapter
+$ i = 9 $ <reset>
+Refs: @preface; @chapter; @interlude; @resumed; @plain; @plain-next; @after; @reset; @custom.
+'''
+        expected_numbers = ["(1)", "(1.1)", "(2)", "(1.3)", "(4)",
+                            "(E)", "(6)", "(1.7)", "(2.1)"]
+        expected_refs = {"preface": "1", "chapter": "1.1", "interlude": "2",
+                         "resumed": "1.3", "plain": "4", "plain-next": "6",
+                         "after": "1.7", "reset": "2.1", "custom": "E"}
+        with tempfile.TemporaryDirectory(prefix=".numbering-test-", dir=ROOT) as folder:
+            folder = Path(folder)
+            source = folder / "test.typ"
+            source.write_text(source_text, encoding="utf-8")
+            for target in ("html", "pdf"):
+                with self.subTest(target=target):
+                    output = folder / ("test." + target)
+                    options = ["--features", "html"] if target == "html" else []
+                    result = subprocess.run(
+                        ["typst", "compile", "--root", str(ROOT), *options,
+                         str(source), str(output)], capture_output=True, text=True, timeout=60,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertNotIn("did not converge", result.stderr)
+                    if target == "html":
+                        document = output.read_text(encoding="utf-8")
+                        self.assertEqual(re.findall(r'class="equation-number">(.*?)</div>', document),
+                                         expected_numbers)
+                        refs = re.findall(r'<a href="#([^"]+)"[^>]*>(.*?)</a>', document)
+                        for label, text in refs:
+                            if label in expected_refs:
+                                self.assertEqual(" ".join(html.unescape(text).split()),
+                                                 "Eq. " + expected_refs[label])
+                        self.assertTrue(set(expected_refs) <= {label for label, _ in refs})
+                    elif shutil.which("pdftotext"):
+                        text = subprocess.run(["pdftotext", "-layout", str(output), "-"],
+                                              capture_output=True, text=True, check=True).stdout
+                        self.assertEqual(re.findall(r"\([\d.A-Z]+\)", text), expected_numbers)
+                        normalized = " ".join(text.split())
+                        self.assertIn("Forward: Eq. 1.1.", normalized)
+                        self.assertIn("Cross: Eq. 1.1; Eq. 1.3.", normalized)
+                        self.assertIn("Refs: " + "; ".join("Eq. " + n for n in expected_refs.values()) + ".",
+                                      normalized)

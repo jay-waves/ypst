@@ -4,7 +4,7 @@ A Typst 0.15+ template for assignments and technical notes, with bilingual typog
 
 ## Automated builds
 
-Every branch push builds the Linux x86-64 and Windows x86-64 `ypst` executables and updates the existing GitHub release and tag `0.1.0` to that commit. The workflow also supports manual runs. The downloaded executable embeds the template assets but requires the Typst CLI to compile documents. The release also includes `ypst-fonts.tar.xz`, containing the checkout fonts, their licenses, and the original Georgia Core Fonts installer and EULA. On Linux, make the downloaded file executable and rename it to `ypst` if desired.
+Every branch push builds the Linux x86-64 and Windows x86-64 `ypst` executables and updates the existing GitHub release and tag `0.1.0` to that commit. The workflow also supports manual runs. The downloaded executable embeds the template assets but requires the Typst CLI to compile documents. The release also includes `ypst-fonts.tar.xz`, containing Source Han Serif, Monaspace Neon, New Computer Modern Math, their licenses, and the original Georgia Core Fonts installer and EULA. On Linux, make the downloaded file executable and rename it to `ypst` if desired.
 
 The `0.1.0` tag is intentionally movable; the workflow needs repository Actions permission to write contents, and tag protection must permit the update. Concurrent runs replace earlier in-progress runs.
 
@@ -91,7 +91,7 @@ revision. The `ypst` binary is always downloaded from the mutable `0.1.0` releas
 - `front-matter`: unnumbered headings without a forced page break.
 - `sidenote`: text or image notes; use `side-image: path("image.png")` for caller-relative images.
 - `definition`, `theorem`, `lemma`, `corollary`, `proof`: environments with English titles. Each statement type has its own counter; proofs are unnumbered and end with a square. Use `#theorem([Name])[Body] <label>` for a named statement or `numbering: none` to omit its number without advancing the counter. PDF block styling options can be passed to the statement; HTML uses dedicated CSS classes. These are template helpers, not the full ctheorems API (`qedhere` and custom counter inheritance are not provided).
-- Native equation, figure, and table references. Equations, figures, tables, and statement environments use chapter-prefixed numbering in PDF and HTML; counters restart at numbered top-level headings.
+- Native equation, figure, and table references. Equations, figures, tables, and statement environments use chapter-prefixed numbering in PDF and HTML; counters restart at numbered top-level headings. Equations automatically omit the chapter prefix inside `#set heading(numbering: none)` scopes, including `front-matter`; references follow the target equation’s scope. Entering or leaving these scopes does not reset the equation counter. Explicit equation numbering settings, including `none`, remain unchanged.
 
 PDF uses native footnotes. In HTML, footnotes expand when clicked and headings
 are collapsible. Inline and display equations use SVG; display equations
@@ -180,6 +180,25 @@ typst compile --root . --font-path ./fonts --input theme=dark --input layout=lan
 
 Examples import the checkout directly. In your own documents, use `@local/ypst-template:0.1.0` after running the installer.
 
+## Design style timeline
+
+Entries are chronological. Exploratory ideas describe possibilities, not mandatory
+rules; adopted choices describe the current template.
+
+### 2026-11-07
+
+- **Possible typography rule:** Sans-serif headings paired with serif body text
+  can distinguish the document hierarchy. This is one possible approach, not a
+  requirement for this template.
+- **Adopted typography:** Headings and prose share Georgia for Latin text and
+  Source Han Serif (Songti) for Chinese in both PDF and HTML. Headings use bold
+  (700); size, spacing, and accent color retain the visual hierarchy.
+- **Specialized content:** Code retains Monaspace Neon with automatic Chinese font fallback;
+  formulas retain New Computer Modern Math.
+- **Font distribution:** The font archive includes the serif and specialized
+  fonts, their licenses, and the Georgia extraction helper. Source Han Sans is
+  removed; Georgia remains supplied as its original installer and EULA.
+
 ## Fonts and CSS
 
 | Content | Preferred font |
@@ -190,9 +209,19 @@ Examples import the checkout directly. In your own documents, use `@local/ypst-t
 | Code | Monaspace Neon |
 | Math | New Computer Modern Math |
 
-The installer does not install fonts. Download `ypst-fonts.tar.xz` from the `0.1.0` release and extract it, or use the checkout fonts; pass the resulting font directory with `--font-path` for PDF. The archive includes Georgia as the original `georgi32.exe` installer with its EULA, not as extracted font files. Review its terms before use or redistribution. To extract Georgia from the release archive without downloading it again, run `python fonts/download-georgia.py --archive <extracted-dir>/Georgia/georgi32.exe --license <extracted-dir>/Georgia/EULA.html --destination <extracted-dir>/Georgia/extracted`. Linux extraction requires `cabextract` or 7-Zip. The release also provides `ypst-fonts.tar.xz.sha256` for integrity checking.
+The installer does not install fonts. Download `ypst-fonts.tar.xz` from the `0.1.0` release and extract it, or use the checkout fonts; pass the resulting font directory with `--font-path` for PDF. The archive includes Georgia as the original `georgi32.exe` installer with its EULA, not as extracted font files. Review its terms before use or redistribution. To extract Georgia from the release archive without downloading it again, run `python <extracted-dir>/download-georgia.py --archive <extracted-dir>/Georgia/georgi32.exe --license <extracted-dir>/Georgia/EULA.html --destination <extracted-dir>/Georgia/extracted`. Linux extraction requires `cabextract` or 7-Zip. The release also provides `ypst-fonts.tar.xz.sha256` for integrity checking.
 
 Standalone HTML loads Monaspace Neon for code from jsDelivr and falls back to Consolas, Menlo, or a system monospace font. Site output uses a shared local font file. Other fonts use locally installed faces and fall back to system fonts when unavailable. Code uses 13px in HTML and 6.25pt in PDF.
+
+**Chinese code font limitation:** No Chinese font is explicitly selected for code,
+and no dedicated Chinese code font is distributed. Typst resolves missing glyphs
+from fonts available to the compiler, including system fonts and `--font-path`.
+The result is environment-dependent: it may be serif or sans-serif, and glyph
+coverage, metrics, line wrapping, and pagination can differ across machines.
+A suitable installed font is required for Chinese glyphs. Generated PDFs embed
+the selected glyphs, so viewing the same PDF elsewhere preserves its appearance.
+HTML uses browser/system fallback on the viewing device and can look different
+across devices. Headings and prose retain their explicit serif font settings.
 
 The `[tool.ypst-template.assets]` tables in `typst.toml` record bundled asset
 versions, files, sources and licenses. They are an inventory of this checkout,
