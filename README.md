@@ -17,7 +17,7 @@ cargo install --path . --locked
 ypst install
 ```
 
-Run `ypst install` again after rebuilding an updated checkout; it refreshes the existing `0.1.0` installation, including HTML styles and scripts. The command embeds these resources and can be called from any working directory. Existing installed fonts are preserved.
+Before compiling, `ypst compile` (including compilation through `ypst serve`) compares the installed `.ypst-commit` with the executable’s build commit. A missing or different commit automatically refreshes the existing `0.1.0` package from the executable’s embedded resources, including HTML styles and scripts. Existing installed fonts are preserved. `ypst --version` shows the build commit. The check uses only the commit ID; after rebuilding uncommitted template edits, run `ypst install` explicitly. Builds outside a Git checkout must set `YPST_BUILD_COMMIT` to the full source commit ID.
 
 | System | Package destination |
 | --- | --- |
@@ -27,8 +27,7 @@ Run `ypst install` again after rebuilding an updated checkout; it refreshes the 
 
 Linux ignores relative `XDG_DATA_HOME` values and uses the default instead.
 These are the [standard local package directories](https://github.com/typst/packages#local-packages).
-If your compiler or editor overrides `--package-path` / `TYPST_PACKAGE_PATH`,
-point it at the corresponding `typst/packages` directory above. Fonts are installed separately.
+The automatic refresh respects `--package-path` / `TYPST_PACKAGE_PATH`; `ypst install` uses the default directory above. Fonts are installed separately.
 
 The package version stays at `0.1.0`. First compilation downloads `headcount:0.1.1` and its dependencies.
 

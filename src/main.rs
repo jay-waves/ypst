@@ -13,6 +13,9 @@ use std::{
     sync::LazyLock,
 };
 
+const BUILD_COMMIT: &str = env!("YPST_BUILD_COMMIT");
+const COMMIT_FILE: &str = ".ypst-commit";
+
 const MONASPACE_CSS: &str = include_str!("../html/monaspace.css");
 const THEME: &str = include_str!("../html/theme.css");
 const HIGHLIGHT_CSS: &str = include_str!("../html/highlight.css");
@@ -77,6 +80,43 @@ fn package_directory(
     Ok(base.join("typst/packages/local/ypst-template/0.1.0"))
 }
 
+fn default_package_directory() -> Result<PathBuf, String> {
+    package_directory(
+        env::consts::OS,
+        env::var("APPDATA").ok().as_deref(),
+        env::var("XDG_DATA_HOME").ok().as_deref(),
+        env::var("HOME")
+            .ok()
+            .or_else(|| env::var("USERPROFILE").ok())
+            .as_deref(),
+    )
+}
+
+fn compile_package_directory(args: &[String]) -> Result<PathBuf, String> {
+    let mut root = env::var_os("TYPST_PACKAGE_PATH").map(PathBuf::from);
+    for (i, arg) in args.iter().enumerate() {
+        if arg == "--package-path" {
+            root = Some(PathBuf::from(
+                args.get(i + 1).ok_or("missing --package-path value")?,
+            ));
+        } else if let Some(value) = arg.strip_prefix("--package-path=") {
+            root = Some(PathBuf::from(value));
+        }
+    }
+    match root {
+        Some(root) => Ok(root.join("local/ypst-template/0.1.0")),
+        None => default_package_directory(),
+    }
+}
+
+fn ensure_package(target: &Path) -> Result<bool, String> {
+    if fs::read_to_string(target.join(COMMIT_FILE)).ok().as_deref() == Some(BUILD_COMMIT) {
+        return Ok(false);
+    }
+    install_package(target)?;
+    Ok(true)
+}
+
 fn install_package(target: &Path) -> Result<(), String> {
     for (name, contents) in PACKAGE_FILES {
         let path = target.join(name);
@@ -91,6 +131,8 @@ fn install_package(target: &Path) -> Result<(), String> {
                 .map_err(|e| format!("{}: {e}", path.display()))?;
         }
     }
+    fs::write(target.join(COMMIT_FILE), BUILD_COMMIT)
+        .map_err(|e| format!("{}: {e}", target.join(COMMIT_FILE).display()))?;
     Ok(())
 }
 
@@ -468,7 +510,11 @@ fn run() -> Result<i32, String> {
             return Ok(0);
         }
         Some("--version") | Some("-V") if args.len() == 1 => {
-            println!("ypst {}", env!("CARGO_PKG_VERSION"));
+            println!(
+                "ypst {} (commit {})",
+                env!("CARGO_PKG_VERSION"),
+                BUILD_COMMIT
+            );
             return Ok(0);
         }
         Some("stop") if args.len() == 1 => {
@@ -513,15 +559,7 @@ fn run() -> Result<i32, String> {
         if args.len() != 1 {
             return Err("usage: ypst install".into());
         }
-        let target = package_directory(
-            env::consts::OS,
-            env::var("APPDATA").ok().as_deref(),
-            env::var("XDG_DATA_HOME").ok().as_deref(),
-            env::var("HOME")
-                .ok()
-                .or_else(|| env::var("USERPROFILE").ok())
-                .as_deref(),
-        )?;
+        let target = default_package_directory()?;
         install_package(&target)?;
         println!(
             "Installed @local/ypst-template:0.1.0 to {}",
@@ -559,6 +597,13 @@ fn run() -> Result<i32, String> {
         return Err("stdin and stdout are not supported".into());
     }
     let source = fs::canonicalize(&positional[0]).map_err(|e| e.to_string())?;
+    let package = compile_package_directory(&pass)?;
+    if ensure_package(&package)? {
+        eprintln!(
+            "Updated @local/ypst-template:0.1.0 to commit {BUILD_COMMIT} at {}",
+            package.display()
+        );
+    }
     let format_opt = pass
         .iter()
         .position(|x| x == "--format" || x == "-f")
@@ -888,6 +933,45 @@ mod tests {
         assert_eq!(normalized_exit(2), ExitCode::FAILURE);
         assert_eq!(normalized_exit(42), ExitCode::FAILURE);
     }
+    #[test]
+    fn package_commit_controls_automatic_refresh() {
+        let root = tempfile::tempdir().unwrap();
+        let target = root.path().join("package");
+        assert!(ensure_package(&target).unwrap());
+        assert_eq!(
+            fs::read_to_string(target.join(COMMIT_FILE)).unwrap(),
+            BUILD_COMMIT
+        );
+        fs::write(target.join("lib.typ"), "local edit").unwrap();
+        assert!(!ensure_package(&target).unwrap());
+        assert_eq!(
+            fs::read_to_string(target.join("lib.typ")).unwrap(),
+            "local edit"
+        );
+        fs::write(target.join(COMMIT_FILE), "older commit").unwrap();
+        assert!(ensure_package(&target).unwrap());
+        assert_eq!(
+            fs::read_to_string(target.join("lib.typ")).unwrap(),
+            include_str!("../lib.typ")
+        );
+        fs::remove_file(target.join(COMMIT_FILE)).unwrap();
+        assert!(ensure_package(&target).unwrap());
+    }
+
+    #[test]
+    fn compile_package_path_accepts_both_option_forms() {
+        for args in [
+            vec!["--package-path", "custom"],
+            vec!["--package-path=custom"],
+        ] {
+            let args: Vec<String> = args.into_iter().map(str::to_owned).collect();
+            assert_eq!(
+                compile_package_directory(&args).unwrap(),
+                PathBuf::from("custom/local/ypst-template/0.1.0")
+            );
+        }
+    }
+
     #[test]
     fn install_uses_fixed_version_and_preserves_other_files() {
         let root = tempfile::tempdir().unwrap();
