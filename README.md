@@ -53,11 +53,22 @@ cargo install --path . --locked
 ypst compile note.typ note.html -- --font-path ./fonts
 ```
 
-Defaults are `theme: "light"` and `layout: "portrait"`:
+Defaults are `theme: "light"`, `paper: "a4"`, `layout: "portrait"`, and `columns: auto`. Automatic columns means one column in portrait and two in landscape; an explicit positive integer overrides that choice:
 
 ```typst
 #show: template.with(theme: "dark", layout: "landscape")
+
+// A4 portrait, single column
+#show: template.with(paper: "a4")
+
+// A4 portrait, two columns
+#show: template.with(paper: "a4", columns: 2)
+
+// A4 landscape, single column
+#show: template.with(paper: "a4", layout: "landscape", columns: 1)
 ```
+
+Choose one of the show rules above. Two-column PDF layouts include a central divider in either orientation.
 
 `--input theme=dark` also sets the PDF theme when no explicit theme is supplied. HTML automatically follows the system light/dark preference, including changes while the page is open. Theme and layout parameters affect PDF only.
 

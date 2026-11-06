@@ -9,7 +9,7 @@
 /// ```
 ///
 /// Feature index:
-/// - `template(theme: "light", layout: "portrait", body)`: page layout and styling.
+/// - `template(theme: "light", paper: "a4", layout: "portrait", columns: auto, body)`: page layout and styling.
 /// - `front-matter(body)`: introductory content with unnumbered headings.
 /// - `sidenote(body, aside, side-image: none)`: body with a right-hand sidenote and optional image.
 /// - `footnote(body)`: a native PDF footnote and an inline HTML disclosure.
@@ -307,22 +307,21 @@
 
 // Paged output is the core renderer. HTML-specific compatibility rules live in
 // html/html.typ, which embeds HTML assets at compilation.
-#let _paged_template(theme, layout, body) = context {
+#let _paged_template(theme, paper, layout, page-columns, body) = context {
     let palette = _palette(theme)
     let landscape = layout == "landscape"
-    let page-columns = if landscape { 2 } else { 1 }
 
     set heading(supplement: [Sec.])
     show math.equation: set text(font: _math_fonts)
 
     set page(
-        paper: "a5",
+        paper: paper,
         flipped: landscape,
         columns: page-columns,
         fill: palette.bg,
         margin: (y: 2.25em, x: 1.8em),
         header: counter(footnote).update(0),
-        foreground: if landscape {
+        foreground: if page-columns == 2 {
             place(
                 center + horizon,
                 rect(
@@ -539,7 +538,9 @@
 /// configuration: `#show: template.with(theme: "dark", layout: "landscape")`.
 #let template(
     theme: sys.inputs.at("theme", default: "light"),
+    paper: "a4",
     layout: "portrait",
+    columns: auto,
     body,
 ) = context {
     // Validate at the public boundary so all output targets report the same
@@ -549,6 +550,16 @@
         layout in ("portrait", "landscape"),
         message: "The layout must be either \"portrait\" or \"landscape\".",
     )
+
+    assert(
+        columns == auto or (type(columns) == int and columns > 0),
+        message: "The columns must be auto or a positive integer.",
+    )
+    let page-columns = if columns == auto {
+        if layout == "landscape" { 2 } else { 1 }
+    } else {
+        columns
+    }
 
     set heading(numbering: (..numbers) => {
         if numbers.pos().len() <= 3 {
@@ -566,6 +577,6 @@
     if target() == "html" {
         _html.template(theme: theme, _chapter_counters(body))
     } else {
-        _paged_template(theme, layout, body)
+        _paged_template(theme, paper, layout, page-columns, body)
     }
 }
