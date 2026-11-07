@@ -1,5 +1,4 @@
 mod assets;
-mod highlight;
 mod preprocess;
 mod site_images;
 mod site_preview;
@@ -17,6 +16,7 @@ use std::{
 const BUILD_COMMIT: &str = env!("YPST_BUILD_COMMIT");
 const COMMIT_FILE: &str = ".ypst-commit";
 
+const MONASPACE_WOFF: &[u8] = include_bytes!("../html/monaspace.woff");
 const MONASPACE_CSS: &str = include_str!("../html/monaspace.css");
 const THEME: &str = include_str!("../html/theme.css");
 const HIGHLIGHT_CSS: &str = include_str!("../html/highlight.css");
@@ -28,12 +28,15 @@ const PACKAGE_FILES: &[(&str, &str)] = &[
     ("lib.typ", include_str!("../lib.typ")),
     ("html/html.typ", include_str!("../html/html.typ")),
     ("html/theme.css", THEME),
-    ("html/monaspace.css", MONASPACE_CSS),
     (
         "fonts/LICENSE-Monaspace.txt",
         include_str!("../fonts/LICENSE-Monaspace.txt"),
     ),
     ("html/highlight.css", HIGHLIGHT_CSS),
+    (
+        "html/highlight.tmTheme",
+        include_str!("../html/highlight.tmTheme"),
+    ),
     ("html/footnotes.css", FOOTNOTES),
     ("html/headings.css", HEADINGS),
     ("html/links.js", include_str!("../html/links.js")),
@@ -238,25 +241,7 @@ fn validate_output(source: &Path, output: &Path) -> Result<(), String> {
 }
 
 fn shared_assets(root: &Path) -> Result<PathBuf, String> {
-    use base64::Engine as _;
-    let prefix = "data:font/woff;base64,";
-    let start = MONASPACE_CSS
-        .find(prefix)
-        .ok_or("missing embedded Monaspace font")?;
-    let payload = start + prefix.len();
-    let end = MONASPACE_CSS[payload..]
-        .find('"')
-        .ok_or("invalid embedded Monaspace font")?
-        + payload;
-    let font = base64::engine::general_purpose::STANDARD
-        .decode(&MONASPACE_CSS[payload..end])
-        .map_err(|e| e.to_string())?;
-    let font_css = format!(
-        "{}monaspace.woff{}",
-        &MONASPACE_CSS[..start],
-        &MONASPACE_CSS[end..]
-    );
-    let css = [&font_css, THEME, HIGHLIGHT_CSS, FOOTNOTES, HEADINGS].join("\n");
+    let css = [MONASPACE_CSS, THEME, HIGHLIGHT_CSS, FOOTNOTES, HEADINGS].join("\n");
     let js = format!(
         "(() => {{\n{}\n{}\n{}\n{}\n}})();\n",
         include_str!("../html/links.js"),
@@ -268,7 +253,7 @@ fn shared_assets(root: &Path) -> Result<PathBuf, String> {
     for (name, data) in [
         ("theme.css", css.as_bytes()),
         ("theme.js", js.as_bytes()),
-        ("monaspace.woff", font.as_slice()),
+        ("monaspace.woff", MONASPACE_WOFF),
     ] {
         hash.update(name.as_bytes());
         hash.update(data);
@@ -280,7 +265,7 @@ fn shared_assets(root: &Path) -> Result<PathBuf, String> {
     for (name, data) in [
         ("theme.css", css.as_bytes()),
         ("theme.js", js.as_bytes()),
-        ("monaspace.woff", font.as_slice()),
+        ("monaspace.woff", MONASPACE_WOFF),
     ] {
         let path = dir.join(name);
         if fs::read(&path).ok().as_deref() != Some(data) {
@@ -848,6 +833,7 @@ mod tests {
         assert!(css.contains("url(\"monaspace.woff\")"));
         assert!(!css.contains("data:font/woff;base64,"));
         assert!(font.starts_with(b"wOFF"));
+        assert_eq!(font, MONASPACE_WOFF);
         let modified = fs::metadata(dir.join("monaspace.woff"))
             .unwrap()
             .modified()

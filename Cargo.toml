@@ -12,13 +12,10 @@ path = "src/main.rs"
 [dependencies]
 regex = "1"
 dunce = "1"
-base64 = "0.22"
 ureq = "3.4.2"
 typst-syntax = "0.15.1"
 serde_json = "1"
 mime_guess = "2"
-syntect = { version = "5.3", default-features = false, features = ["regex-fancy", "yaml-load"] }
-two-face = { version = "0.5", default-features = false, features = ["syntect-fancy"] }
 quick-xml = { version = "0.42", features = ["escape-html"] }
 tempfile = "3"
 sha2 = "0.10"

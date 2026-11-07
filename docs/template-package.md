@@ -44,14 +44,14 @@ Place `typst.toml` directly inside `0.1.0/`, then import with:
 ## Included behavior and dependencies
 
 The theme, footnotes, collapsible headings, sidenotes, equations, and numbering
-work with native Typst. The first compilation may download `headcount:0.1.1`
+work with native Typst. Code highlighting uses Typst’s built-in grammars and the
+bundled HTML theme with adaptive light/dark colors. The first compilation may download `headcount:0.1.1`
 and its dependencies from Typst Universe. Fonts are distributed separately in
 `ypst-fonts.tar.xz`; use `--font-path` to make them available to Typst. Standalone
 HTML loads Monaspace Neon from a CDN, with local fallback fonts.
 
 Compared with compiling through ypst, `imagit` displays a link instead of
-downloading the image, HTML code blocks use native Typst highlighting, and CeTZ
-drawings need an explicit `cetz-frame(...)` wrapper. Automatic site asset
+downloading the image, and CeTZ drawings need an explicit `cetz-frame(...)` wrapper. Automatic site asset
 packaging and SVG glyph deduplication are not included.
 
 The asset inventory in `typst.toml` describes the source checkout, including

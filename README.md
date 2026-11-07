@@ -1,6 +1,6 @@
 # ypst
 
-ypst is a Typst 0.15+ enhancement specialized for standalone HTML and site output. It adds remote-image downloads, HTML code highlighting, automatic CeTZ adaptation, and shared site assets around the native Typst compiler. Its companion template provides bilingual typography and interactive HTML notes, while retaining PDF support.
+ypst is a Typst 0.15+ enhancement specialized for standalone HTML and site output. It adds remote-image downloads, automatic CeTZ adaptation, and shared site assets around the native Typst compiler. Its companion template provides bilingual typography and interactive HTML notes, while retaining PDF support.
 
 ## Automated builds
 
@@ -114,7 +114,7 @@ are not selectable as math. PDF and HTML layouts may differ.
 
 Preprocessing follows literal local `#include` and `#import` paths within `--root`, reuses repeated references, and rejects cycles. Changed files use temporary sibling copies so relative paths keep their meaning; source directories must be writable. Original files are not modified.
 
-HTML code blocks are highlighted before compilation using syntect with its pure-Rust fancy-regex backend. The highlighter emits Typst `html.elem` source, and Typst exports the final HTML. Syntax definitions come from two-face, with local HTTP, Excel formula, PowerShell, Visual Basic, and WebAssembly grammars in `syntaxes/`. Unknown or unspecified languages remain plain text. No JavaScript runtime, Node.js, or npm build step is needed. See the [syntax definitions and their licenses](https://codeberg.org/CosmicHarper/two-face/src/tag/v0.5.2+bat-0.26.1/generated/acknowledgements_full.md).
+Code highlighting is handled entirely by Typst, including inline code and dynamically generated `raw(...)`. HTML uses `html/highlight.tmTheme` with a small light/dark CSS palette in `html/highlight.css`; keep their colors in sync. Use Typst's language names or extensions (for example, `dockerfile`, not `docker`). Unsupported languages remain plain text; optional grammars can be supplied with native `raw(syntaxes: ...)`. Custom `raw(theme: ...)` themes are supported, but colors outside the bundled palette keep their original values. ypst bundles no separate highlighter or syntax database.
 
 ### HTML export
 
@@ -132,7 +132,7 @@ ypst compile note.typ --root . --site-root _site          # site output
 | --- | --- | --- |
 | Theme and interactions | Includes styles, footnotes, collapsible headings, and sidenotes | Same template behavior |
 | Equations and references | Renders equations, numbering, and references | Same template behavior; deduplicates SVG glyphs when this reduces file size |
-| Code blocks | Native Typst highlighting | syntect highlighting |
+| Code blocks | Native Typst highlighting with adaptive HTML colors | Same template behavior |
 | Remote images via `imagit` | Displays a clickable URL | Downloads and renders direct calls with literal HTTP(S) URLs; download failures stop compilation |
 | CeTZ drawings | Requires an explicit `cetz-frame(...)` wrapper | Automatically adapts literal `@preview/cetz:…` imports |
 | Template updates | Uses the installed or directly imported template | Refreshes the local package when its recorded commit differs from the executable |

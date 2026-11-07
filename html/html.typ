@@ -21,6 +21,7 @@
 #let template(theme: "light", body) = {
     // HTML follows the browser; the public theme parameter controls PDF only.
     let theme = "auto"
+    set raw(theme: "highlight.tmTheme")
     // Keep SVG rendering; box gives frames inline paragraph semantics in Typst 0.15.
     show math.equation.where(block: false): it => context { if target() == "html" { box(html.frame(it)) } else { it } }
     show math.equation.where(block: true): it => context {

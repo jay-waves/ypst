@@ -425,7 +425,7 @@
             width: 100%,
             above: code-spacing,
             below: code-spacing,
-            inset: (x: 1em, y: 0.9em),
+            inset: (x: 1em, y: 0.6em),
             radius: 2pt,
             fill: palette.code-bg,
             [

@@ -373,11 +373,12 @@ body .highlight { margin-bottom: 1rem; }
 
 body .highlight pre { margin-bottom: 0; word-break: normal; }
 
+/* Match the paged template: compact insets and 1.7x code line spacing. */
 body pre {
-  padding: 1rem;
+  padding: .6em 1em;
   overflow: auto;
   word-wrap: normal;
-  line-height: 1.45;
+  line-height: 1.7;
   font-family: var(--md-font-mono);
   font-kerning: none;
   color: var(--md-code-fg);

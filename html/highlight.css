@@ -1,29 +1,21 @@
-/* Shared light/dark palette for compile-time syntax highlighting. */
+/* Map highlight.tmTheme colors from Typst's inline styles to both color schemes.
+ * !important overrides those inline colors; custom theme colors are left alone. */
 @scope (.typst-document) {
-  code.syntax,
-  #content pre > code.syntax {
-    color: light-dark(#24292e, #adbac7);
-    background: transparent;
+  code[data-lang] {
     font-family: var(--md-font-mono);
     font-size: var(--md-code-font-size);
+  }
+  pre > code[data-lang] {
+    color: light-dark(#24292e, #adbac7);
+    background: transparent;
     font-weight: 400;
   }
-
-  .syntax-keyword { color: light-dark(#d73a49, #f47067); }
-  .syntax-entity { color: light-dark(#6f42c1, #dcbdfb); }
-  .syntax-constant { color: light-dark(#005cc5, #6cb6ff); }
-  .syntax-string { color: light-dark(#032f62, #96d0ff); }
-  .syntax-builtin { color: light-dark(#e36209, #f69d50); }
-  .syntax-comment { color: light-dark(#6a737d, #768390); }
-  .syntax-heading { color: light-dark(#005cc5, #6cb6ff); font-weight: bold; }
-  .syntax-strong { font-weight: bold; }
-  .syntax-emphasis { font-style: italic; }
-  .syntax-addition {
-    color: light-dark(#22863a, #b4f1b4);
-    background: light-dark(#f0fff4, #1b4721);
-  }
-  .syntax-deletion {
-    color: light-dark(#b31d28, #ffd8d3);
-    background: light-dark(#ffeef0, #78191b);
-  }
+  code[data-lang] span[style="color: #6a737d"] { color: light-dark(#6a737d, #768390) !important; }
+  code[data-lang] span[style="color: #d73a49"] { color: light-dark(#d73a49, #f47067) !important; }
+  code[data-lang] span[style="color: #005cc5"] { color: light-dark(#005cc5, #6cb6ff) !important; }
+  code[data-lang] span[style="color: #032f62"] { color: light-dark(#032f62, #96d0ff) !important; }
+  code[data-lang] span[style="color: #6f42c1"] { color: light-dark(#6f42c1, #dcbdfb) !important; }
+  code[data-lang] span[style="color: #e36209"] { color: light-dark(#e36209, #f69d50) !important; }
+  code[data-lang] span[style="color: #22863a"] { color: light-dark(#22863a, #b4f1b4) !important; }
+  code[data-lang] span[style="color: #b31d28"] { color: light-dark(#b31d28, #ffd8d3) !important; }
 }

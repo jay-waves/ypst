@@ -16,6 +16,7 @@ FILES = {
         "html/html.typ",
         "html/theme.css",
         "html/highlight.css",
+        "html/highlight.tmTheme",
         "html/footnotes.css",
         "html/headings.css",
         "html/links.js",

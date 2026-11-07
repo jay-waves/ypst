@@ -16,7 +16,7 @@ project = "https://github.com/adobe-fonts/source-han-serif"
 
 [tool.ypst-template.assets.monaspace]
 version = "1.400"
-files = ["fonts/MonaspaceNeon-Regular.otf", "fonts/MonaspaceNeon-Bold.otf", "html/monaspace.css"]
+files = ["fonts/MonaspaceNeon-Regular.otf", "fonts/MonaspaceNeon-Bold.otf", "html/monaspace.css", "html/monaspace.woff"]
 license = "fonts/LICENSE-Monaspace.txt"
 project = "https://github.com/githubnext/monaspace"
 

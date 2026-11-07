@@ -161,11 +161,6 @@ impl Prepared {
         } else {
             text
         };
-        let text = if html {
-            super::highlight::highlight_code(&text)?
-        } else {
-            text
-        };
         self.active.remove(path);
         let changed = text != parsed.text();
         Ok((text, changed))
@@ -249,7 +244,7 @@ mod tests {
         }
     }
     #[test]
-    fn recursively_rewrites_local_files_and_preserves_relative_assets() {
+    fn preserves_native_raw_and_relative_assets_in_local_files() {
         let dir = tempfile::tempdir().unwrap();
         let root = fs::canonicalize(dir.path()).unwrap();
         fs::create_dir(root.join("chapter")).unwrap();
@@ -264,13 +259,11 @@ mod tests {
         )
         .unwrap();
         let prepared = Prepared::new(&root.join("main.typ"), &root, true).unwrap();
-        assert_eq!(prepared.files.len(), 1);
-        let file = &prepared.files[0];
-        assert_eq!(file.path().parent(), Some(root.join("chapter").as_path()));
-        let text = fs::read_to_string(file.path()).unwrap();
-        assert!(text.contains("syntax-keyword"));
-        assert!(text.contains("#image(\"picture.svg\")"));
-        assert_eq!(prepared.text.matches(".ypst-source-").count(), 2);
+        assert!(prepared.files.is_empty());
+        assert_eq!(
+            prepared.text,
+            fs::read_to_string(root.join("main.typ")).unwrap()
+        );
         assert!(
             fs::read_to_string(root.join("chapter/body.typ"))
                 .unwrap()
