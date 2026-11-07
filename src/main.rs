@@ -1,4 +1,4 @@
-mod graphs;
+mod assets;
 mod preprocess;
 mod site_images;
 mod site_preview;
@@ -21,7 +21,6 @@ const THEME: &str = include_str!("../html/theme.css");
 const HIGHLIGHT_CSS: &str = include_str!("../html/highlight.css");
 const FOOTNOTES: &str = include_str!("../html/footnotes.css");
 const HEADINGS: &str = include_str!("../html/headings.css");
-const PELE: &str = include_str!("../html/pele.global.js");
 
 const PACKAGE_FILES: &[(&str, &str)] = &[
     ("typst.toml", include_str!("../typst.toml")),
@@ -46,10 +45,6 @@ const PACKAGE_FILES: &[(&str, &str)] = &[
     (
         "html/line_navigation.js",
         include_str!("../html/line_navigation.js"),
-    ),
-    (
-        "html/LICENSE-Pele.txt",
-        include_str!("../html/LICENSE-Pele.txt"),
     ),
     (
         "html/COMPATIBILITY.md",
@@ -229,7 +224,7 @@ fn changed_entry(
         return Ok(None);
     }
     let mut file = tempfile::Builder::new()
-        .prefix(".typst-graphs-entry-")
+        .prefix(".ypst-entry-")
         .suffix(".typ")
         .tempfile_in(source.parent().ok_or("source has no parent")?)
         .map_err(|e| e.to_string())?;
@@ -805,7 +800,6 @@ fn run() -> Result<i32, String> {
     if !status.success() {
         return Ok(status.code().unwrap_or(1));
     }
-    prepared.inline_graphs(&target)?;
     svg_glyphs::optimize_file(&target)?;
     Ok(0)
 }

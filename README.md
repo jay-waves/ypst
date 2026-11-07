@@ -1,6 +1,6 @@
-# ypst-template
+# ypst
 
-A Typst 0.15+ template for assignments and technical notes, with bilingual typography, light/dark themes, PDF layouts, and interactive HTML notes.
+ypst is a Typst 0.15+ enhancement specialized for standalone HTML and site output. It adds remote-image downloads, HTML code highlighting, automatic CeTZ adaptation, and shared site assets around the native Typst compiler. Its companion template provides bilingual typography and interactive HTML notes, while retaining PDF support.
 
 ## Automated builds
 
@@ -9,6 +9,22 @@ Every branch push builds the Linux x86-64 and Windows x86-64 `ypst` executables 
 The `0.1.0` tag is intentionally movable; the workflow needs repository Actions permission to write contents, and tag protection must permit the update. Concurrent runs replace earlier in-progress runs.
 
 ## Quick start
+
+### Standalone template without ypst
+
+The `0.1.0` release also provides `ypst-template-0.1.0.zip` and
+`ypst-template-0.1.0.tar.xz`, each with a `.sha256` checksum. These archives
+contain the template, HTML styles, browser scripts, and usage instructions,
+without the ypst executable or compiler runtime. Fonts remain a separate download.
+
+Extract the archive inside your document project and import
+`"ypst-template-0.1.0/lib.typ"`, or copy its contents into the local package
+directory listed below and import `@local/ypst-template:0.1.0`.
+Compile HTML directly with `typst compile note.typ note.html --features html --root .`.
+See [standalone template instructions](docs/template-package.md) for dependencies
+and differences from ypst compilation.
+
+### Full ypst installation
 
 Install or update the local package from this repository:
 
@@ -96,60 +112,48 @@ PDF uses native footnotes. In HTML, footnotes expand when clicked and headings
 are collapsible. Inline and display equations use SVG; display equations
 are not selectable as math. PDF and HTML layouts may differ.
 
-The template exports `mermaid(source, width: auto, caption: none)` from `lib.typ`. Mermaid defaults to natural image sizing (`auto`) in PDF; HTML retains its full-width container. Explicit widths override these defaults. Pass Mermaid source as a literal string or a fenced code block; see `examples/charts.typ`.
+Preprocessing follows literal local `#include` and `#import` paths within `--root`, reuses repeated references, and rejects cycles. Changed files use temporary sibling copies so relative paths keep their meaning; source directories must be writable. Original files are not modified.
 
-When compiled with `ypst`, Mermaid calls are preprocessed into static SVG for PDF and HTML. Preprocessing follows literal local `#include` and `#import` paths within `--root`, reuses repeated references, and rejects cycles. Changed files use temporary sibling copies so relative paths keep their meaning; source directories must be writable. Original files are not modified.
-
-With plain `typst compile`, the template functions leave the document compilable and show a small note where each graph would appear. They do not render the graph; use `ypst` for SVG rendering. Width and caption are optional. Caption uses Typst content, and width accepts Typst lengths.
-
-The bundled QuickJS graph resources are checked in. To rebuild them after changing their source or dependencies, run `npm ci` and `npm run build:graphs` in this repository. This also synchronizes the Pele version, license, and digest in the asset inventory. The embedded FormatJS polyfills provide English locale data for QuickJS.
+HTML code blocks are highlighted at compile time using highlight.js in the embedded QuickJS runtime. The bundled JavaScript resources are checked in. To rebuild them after changing their source or dependencies, run `npm ci` and `npm run build:assets` in this repository. The embedded FormatJS polyfills provide English locale data for QuickJS. End users do not need Node.js or npm.
 
 ### HTML export
 
-Build the Rust wrapper once (requires Rust and a C compiler), install Typst CLI, then compile a standalone HTML file:
+The template works with native Typst. ypst adds automatic resource handling and
+site packaging. Both require Typst 0.15+; the comparison below assumes the same
+template and `#show: template`.
 
 ```sh
-cargo install --path . --locked
-ypst compile note.typ                 # writes note.html
-ypst compile note.typ output.html     # choose an output file
+typst compile note.typ note.html --features html --root .  # native Typst
+ypst compile note.typ note.html --root .                  # enhanced HTML
+ypst compile note.typ --root . --site-root _site          # site output
 ```
 
-For remote images that also compile with plain Typst, import `imagit` from the template:
+| Behavior | Native Typst + template | ypst |
+| --- | --- | --- |
+| Theme and interactions | Includes styles, footnotes, collapsible headings, and sidenotes | Same template behavior |
+| Equations and references | Renders equations, numbering, and references | Same template behavior; deduplicates SVG glyphs when this reduces file size |
+| Code blocks | Native Typst highlighting | highlight.js highlighting |
+| Remote images via `imagit` | Displays a clickable URL | Downloads and renders direct calls with literal HTTP(S) URLs; download failures stop compilation |
+| CeTZ drawings | Requires an explicit `cetz-frame(...)` wrapper | Automatically adapts literal `@preview/cetz:…` imports |
+| Template updates | Uses the installed or directly imported template | Refreshes the local package when its recorded commit differs from the executable |
+| Site resources | Arrange shared resources and output paths yourself | Packages pages with shared styles, scripts, a code font, and supported images |
+
+For remote images, import `imagit` from the template:
 
 ```typst
 #import "@local/ypst-template:0.1.0": imagit
 #imagit("https://example.com/image.png", width: 80%, alt: "Example")
 ```
 
-Plain Typst silently omits remote `imagit` calls; `ypst` downloads and renders them in PDF, standalone HTML, and site output. Use native `image` for local paths; `image(URL)` is no longer downloaded or rewritten by `ypst`. Remote preprocessing requires a direct `imagit("literal URL", ...)` call (no aliases, module-qualified calls, or computed URLs). Native image options are preserved. Download errors still fail `ypst` compilation.
+Use native `image` for local files; `image(URL)` is not downloaded by ypst.
 
-The output embeds the theme, scripts, and images. Literal HTTP(S) URLs are supported in `#imagit("https://example.com/image.png")`: `ypst` downloads them before compilation, with a 15-second timeout and 10 MiB response limit. The same URL is fetched once per compilation; later compilations fetch it again. PDF uses the downloaded file and standalone HTML embeds the image. Supported downloads are PNG, JPEG, GIF, WebP, SVG, and PDF images. Like the graph directives, URL preprocessing covers the entry and its literal local include/import dependencies. Repeated SVG frame glyphs are shared within each HTML page when this reduces its size. The Rust wrapper does not perform the legacy document-setting precheck. Place `#set document(...)`
-before `#show: template`. Pass Typst options after `--`, for example
-`-- --root . --diagnostic-format human`. Site mode uses a temporary entry. Short-format diagnostics (the default) map its source locations back to the original file; human-format diagnostics retain Typst’s temporary entry locations.
+Site output writes `_site/note.typ/index.html`; deploy the entire `_site`
+directory. Links are preserved as written, so use paths relative to the output
+page. Images externalized by site mode do not apply native image set/show rules;
+set `width`, `height`, and `alt` directly on those calls.
 
-For a site with shared CSS and scripts, use:
-
-```sh
-ypst compile --root . note.typ --site-root _site
-```
-
-This writes `_site/note.typ/index.html` and shared assets under
-`_site/_shared/typst/<content-hash>/`. Source paths relative to `--root` (the current directory by default) are preserved; an explicit output selects the page's bundle directory.
-The shared site theme references a separate `monaspace.woff` in the same content-versioned directory, so pages reuse both the stylesheet and font. The built-in preview server uses long-lived caching for content-addressed shared resources and ETags for other static files; configure equivalent cache headers separately when deploying to another server. Standalone HTML loads Monaspace Neon from jsDelivr and falls back to local monospace fonts when offline.
-
-Site preprocessing writes known PNG, JPEG, GIF, WebP, and SVG images into `_site/_shared/typst/images/` using content hashes; pages reference these files directly and identical images are reused. This includes literal local images, downloaded images, and generated graphs. Standalone output keeps images embedded. Deploy the site directory together. `--assets-url /static/` replaces the relative
-shared-asset URL prefix; map that URL to the generated content-hash directory.
-
-Site preprocessing now externalizes literal `image("path")` calls before Typst export, including downloaded images and the SVG files generated by `#mermaid`. PNG, JPEG, GIF, WebP and SVG files are hashed into the shared image directory and replaced with HTML image elements, avoiding a Base64 round trip. Explicit `width`, `height` and `alt` are supported; other image arguments keep the existing exporter path. Relative paths use the referring source file, including local include/import dependencies. Dynamic images retain native Typst output; display-equation SVG glyphs may be shared within the generated page. Global image set/show rules do not apply to images replaced with HTML elements; use explicit width, height and alt on these calls.
-Links are emitted as written, so use paths relative to the output page, such as
-`../b.typ/` from `a.typ/index.html` to `b.typ/index.html`. Links to `.typ` files are not
-converted to site URLs.
-
-HTML is the default. A `.pdf` output path automatically selects PDF, for example `ypst compile note.typ output.pdf` or `ypst compile note.typ -o output.pdf`. Alternatively, use `ypst compile --pdf note.typ` (defaults to `note.pdf`) or specify `--format pdf`. PDF output cannot be combined with `--site-root`; an explicit non-PDF format conflicts with a `.pdf` output path. Other Typst subcommands are passed through. The command returns exit code 0 on success and 1 on failure, including argument and Typst errors.
-
-Source-line anchor injection is temporarily disabled. The wrapper creates a
-temporary entry beside the source, so the source directory must be writable;
-its filename may also affect code that depends on the source filename.
+Standalone HTML embeds styles, scripts, and images; its code font loads from a
+CDN with local fallbacks. PDF remains available with `ypst compile note.typ note.pdf`.
 
 ## Recommended packages
 

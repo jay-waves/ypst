@@ -1,9 +1,9 @@
 {
-  "name": "typst2-graph-assets",
+  "name": "ypst-html-assets",
   "private": true,
   "type": "module",
   "scripts": {
-    "build:graphs": "node vendor/build.mjs"
+    "build:assets": "node vendor/build.mjs"
   },
   "dependencies": {
     "@formatjs/intl-getcanonicallocales": "3.3.0",
@@ -11,8 +11,7 @@
     "@formatjs/intl-numberformat": "10.0.2",
     "@formatjs/intl-pluralrules": "7.0.2",
     "highlight.js": "11.12.0",
-    "linkedom": "0.18.15",
-    "pele": "1.13.0"
+    "linkedom": "0.18.15"
   },
   "devDependencies": {
     "esbuild": "0.28.2"

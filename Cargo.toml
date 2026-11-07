@@ -1,5 +1,6 @@
 [package]
 name = "typst2"
+description = "A Typst enhancement specialized for HTML and site output."
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.92"

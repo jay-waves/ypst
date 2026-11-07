@@ -509,19 +509,3 @@ body :is(.footnote-ref a, a.footnote-link, a.footnote-backref) { color: var(--md
 body li > p:first-child { margin-top: 0; }
 
 body :is(a, button, summary, [role="button"]):focus-visible { outline: 2px solid var(--md-accent); outline-offset: 2px; }
-
-/* Pele SVGs inherit the same palette as the surrounding document. */
-.pele {
-  --pele-bg: var(--md-bg);
-  --pele-fg: var(--md-fg);
-  --pele-muted: var(--md-muted);
-  --pele-line: var(--md-muted);
-  --pele-surface: var(--md-pre-bg);
-  --pele-surface-alt: var(--md-code-bg);
-  --pele-border: var(--md-muted);
-  --pele-accent: var(--md-accent);
-  --pele-font: var(--md-font);
-  --pele-font-mono: var(--md-font-mono);
-  max-width: 100%;
-  height: auto;
-}

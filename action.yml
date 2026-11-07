@@ -1,5 +1,5 @@
-name: Set up ypst-template
-description: Install Typst, ypst, and the local ypst-template package.
+name: Set up ypst
+description: Set up ypst for enhanced Typst HTML and site output, including Typst and the companion template.
 runs:
   using: composite
   steps:

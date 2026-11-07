@@ -1,4 +1,4 @@
-//! Externalize literal images after graph/download preprocessing, before Typst.
+//! Externalize literal images after remote-image preprocessing, before Typst.
 use sha2::{Digest, Sha256};
 use std::{
     fs,

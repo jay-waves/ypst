@@ -1,4 +1,4 @@
-/// Shared document theme and typesetting helpers.
+/// Companion template for ypst HTML and site output, with PDF support.
 ///
 /// Common imports and usage (adjust the path relative to your document):
 /// ```typst
@@ -30,28 +30,8 @@
     } else { body }
 }
 
-/// Remote images are silent in plain Typst; ypst downloads literal HTTP(S) URLs.
-#let imagit(url, ..options) = []
-
-// Fallbacks keep graph calls valid in plain Typst. The ypst preprocessor
-// replaces these calls with rendered SVG before Typst sees them.
-#let _graph-placeholder(kind, path, width, caption) = {
-    let body = box(
-        width: width,
-        inset: 8pt,
-        stroke: (paint: luma(180), thickness: 0.5pt),
-    )[
-        #text(weight: "bold")[#kind is not rendered]
-        #linebreak()
-        #text(size: 0.8em, fill: luma(100))[Run this document with ypst to render #kind from #path.]
-    ]
-    if caption == none { figure(body) } else { figure(body, caption: caption) }
-}
-
-/// A Mermaid graph source. `ypst` renders it to SVG; plain Typst shows a note.
-#let mermaid(path, width: auto, caption: none) = _graph-placeholder(
-    "Mermaid", path, width, caption,
-)
+/// Plain Typst shows a link; ypst downloads and renders literal HTTP(S) URLs.
+#let imagit(url, ..options) = link(url)
 
 #assert(
     sys.version >= version(0, 15, 0),
