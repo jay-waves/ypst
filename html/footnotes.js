@@ -54,7 +54,7 @@
         let index = 0;
 
         document.querySelectorAll('[role="doc-noteref"] a[href]').forEach(reference => {
-            const sourceId = sameDocumentFragment(reference);
+            const sourceId = sameDocumentFragment(reference.getAttribute('href'));
             if (sourceId === null) return;
             const source = notes.get(sourceId);
             if (!source) return;
@@ -130,4 +130,17 @@
     } else {
         convertFootnotes();
     }
+})();
+
+// Print native disclosures too; restore exactly the ones opened for printing.
+(() => {
+    let closed = [];
+    window.addEventListener('beforeprint', () => {
+        closed = [...document.querySelectorAll('.typst-document details:not([open])')];
+        closed.forEach(details => { details.open = true; });
+    });
+    window.addEventListener('afterprint', () => {
+        closed.forEach(details => { details.open = false; });
+        closed = [];
+    });
 })();

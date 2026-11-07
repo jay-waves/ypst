@@ -15,17 +15,17 @@ runs:
         YPST_REPOSITORY: ${{ github.action_repository || github.repository }}
       run: |
         if ($env:RUNNER_ARCH -ne 'X64') {
-          throw "ypst release 0.1.0 supports x64 runners only; found $env:RUNNER_ARCH"
+          throw "ypst rolling release supports x64 runners only; found $env:RUNNER_ARCH"
         }
         switch ($env:RUNNER_OS) {
           'Linux' { $asset = 'ypst-linux-x64'; $binary = 'ypst' }
           'Windows' { $asset = 'ypst-windows-x64.exe'; $binary = 'ypst.exe' }
-          default { throw "ypst release 0.1.0 does not support $env:RUNNER_OS" }
+          default { throw "ypst rolling release does not support $env:RUNNER_OS" }
         }
         $directory = Join-Path $env:RUNNER_TEMP 'ypst-template-bin'
         New-Item -ItemType Directory -Force -Path $directory | Out-Null
-        gh release download 0.1.0 --repo $env:YPST_REPOSITORY --pattern $asset --dir $directory --clobber
-        if ($LASTEXITCODE -ne 0) { throw 'Failed to download ypst 0.1.0' }
+        gh release download --repo $env:YPST_REPOSITORY --pattern $asset --dir $directory --clobber
+        if ($LASTEXITCODE -ne 0) { throw 'Failed to download latest ypst release' }
         $executable = Join-Path $directory $binary
         if ($asset -ne $binary) { Move-Item -Force (Join-Path $directory $asset) $executable }
         if ($env:RUNNER_OS -eq 'Linux') {

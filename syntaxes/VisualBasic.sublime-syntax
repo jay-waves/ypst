@@ -1,0 +1,21 @@
+%YAML 1.2
+---
+name: Visual Basic
+file_extensions: [vb, vbnet, vbs]
+scope: source.vbnet
+contexts:
+  main:
+    - match: "'.*$|(?i:\\bREM\\b).*$"
+      scope: comment.line.vbnet
+    - match: '"'
+      push:
+        - meta_scope: string.quoted.double.vbnet
+        - match: '""'
+        - match: '"'
+          pop: true
+    - match: '(?i)\b(as|async|await|byref|byval|call|case|catch|class|const|continue|declare|default|delegate|dim|directcast|do|each|else|elseif|end|enum|event|exit|finally|for|friend|function|get|goto|handles|if|implements|imports|in|inherits|interface|is|isnot|let|loop|me|module|mustinherit|mustoverride|mybase|myclass|namespace|new|next|not|of|on|operator|option|optional|or|orelse|overloads|overrides|paramarray|partial|private|property|protected|public|raiseevent|readonly|redim|return|select|set|shadows|shared|static|step|stop|structure|sub|synclock|then|throw|to|try|trycast|typeof|using|wend|when|while|with|withevents|writeonly|xor|and|andalso)\b'
+      scope: keyword.control.vbnet
+    - match: '(?i)\b(boolean|byte|char|date|decimal|double|integer|long|object|sbyte|short|single|string|uinteger|ulong|ushort)\b'
+      scope: storage.type.vbnet
+    - match: '(?i)\b(true|false|nothing)\b|\b\d+(\.\d+)?\b|&[Hh][\da-fA-F]+'
+      scope: constant.numeric.vbnet

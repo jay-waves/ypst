@@ -4,15 +4,15 @@ ypst is a Typst 0.15+ enhancement specialized for standalone HTML and site outpu
 
 ## Automated builds
 
-Every branch push builds the Linux x86-64 and Windows x86-64 `ypst` executables and updates the existing GitHub release and tag `0.1.0` to that commit. The workflow also supports manual runs. The downloaded executable embeds the template assets but requires the Typst CLI to compile documents. The release also includes `ypst-fonts.tar.xz`, containing Source Han Serif, Monaspace Neon, New Computer Modern Math, their licenses, and the original Georgia Core Fonts installer and EULA. On Linux, make the downloaded file executable and rename it to `ypst` if desired.
+Every branch push builds the Linux x86-64 and Windows x86-64 `ypst` executables and publishes a GitHub release tagged `rolling-YYYYMMDD-<sha6>` (UTC build date and the first six hexadecimal characters of the commit SHA). The workflow also supports manual runs. The downloaded executable embeds the template assets but requires the Typst CLI to compile documents. The release also includes `ypst-fonts.tar.xz`, containing Source Han Serif, Monaspace Neon, New Computer Modern Math, their licenses, and the original Georgia Core Fonts installer and EULA. On Linux, make the downloaded file executable and rename it to `ypst` if desired.
 
-The `0.1.0` tag is intentionally movable; the workflow needs repository Actions permission to write contents, and tag protection must permit the update. Concurrent runs replace earlier in-progress runs.
+Each successful publication becomes the latest release, then removes previous rolling releases and their tags, including the legacy `0.1.0` release. Failed uploads leave the previous release available. Reruns with the same date and commit reuse the same tag. The workflow needs repository Actions permission to write contents and permission to delete old release tags. Concurrent runs replace earlier in-progress runs. Package versions remain fixed at `0.1.0`.
 
 ## Quick start
 
 ### Standalone template without ypst
 
-The `0.1.0` release also provides `ypst-template-0.1.0.zip` and
+The latest rolling release also provides `ypst-template-0.1.0.zip` and
 `ypst-template-0.1.0.tar.xz`, each with a `.sha256` checksum. These archives
 contain the template, HTML styles, browser scripts, and usage instructions,
 without the ypst executable or compiler runtime. Fonts remain a separate download.
@@ -89,7 +89,7 @@ Choose one of the show rules above. Two-column PDF layouts include a central div
 
 ## GitHub Actions
 
-The composite action installs Typst `0.15.0`, downloads the `ypst` `0.1.0` release executable, and installs the local template package. It supports Linux and Windows x64 runners and requires GitHub CLI (`gh`), which is preinstalled on GitHub-hosted runners. Check out the article repository first, then compile and deploy it in your own workflow steps:
+The composite action installs Typst `0.15.0`, downloads the latest `ypst` rolling release executable, and installs the local template package. It supports Linux and Windows x64 runners and requires GitHub CLI (`gh`), which is preinstalled on GitHub-hosted runners. Check out the article repository first, then compile and deploy it in your own workflow steps:
 
 ```yaml
 steps:
@@ -99,7 +99,7 @@ steps:
 ```
 
 Use a branch, tag, or commit SHA in the `uses` reference to select the action
-revision. The `ypst` binary is always downloaded from the mutable `0.1.0` release, independently of the selected action revision.
+revision. The `ypst` binary is always downloaded from the latest rolling release, independently of the selected action revision.
 
 ## Features
 
@@ -114,7 +114,7 @@ are not selectable as math. PDF and HTML layouts may differ.
 
 Preprocessing follows literal local `#include` and `#import` paths within `--root`, reuses repeated references, and rejects cycles. Changed files use temporary sibling copies so relative paths keep their meaning; source directories must be writable. Original files are not modified.
 
-HTML code blocks are highlighted at compile time using highlight.js in the embedded QuickJS runtime. The bundled JavaScript resources are checked in. To rebuild them after changing their source or dependencies, run `npm ci` and `npm run build:assets` in this repository. The embedded FormatJS polyfills provide English locale data for QuickJS. End users do not need Node.js or npm.
+HTML code blocks are highlighted before compilation using syntect with its pure-Rust fancy-regex backend. The highlighter emits Typst `html.elem` source, and Typst exports the final HTML. Syntax definitions come from two-face, with local HTTP, Excel formula, PowerShell, Visual Basic, and WebAssembly grammars in `syntaxes/`. Unknown or unspecified languages remain plain text. No JavaScript runtime, Node.js, or npm build step is needed. See the [syntax definitions and their licenses](https://codeberg.org/CosmicHarper/two-face/src/tag/v0.5.2+bat-0.26.1/generated/acknowledgements_full.md).
 
 ### HTML export
 
@@ -132,7 +132,7 @@ ypst compile note.typ --root . --site-root _site          # site output
 | --- | --- | --- |
 | Theme and interactions | Includes styles, footnotes, collapsible headings, and sidenotes | Same template behavior |
 | Equations and references | Renders equations, numbering, and references | Same template behavior; deduplicates SVG glyphs when this reduces file size |
-| Code blocks | Native Typst highlighting | highlight.js highlighting |
+| Code blocks | Native Typst highlighting | syntect highlighting |
 | Remote images via `imagit` | Displays a clickable URL | Downloads and renders direct calls with literal HTTP(S) URLs; download failures stop compilation |
 | CeTZ drawings | Requires an explicit `cetz-frame(...)` wrapper | Automatically adapts literal `@preview/cetz:…` imports |
 | Template updates | Uses the installed or directly imported template | Refreshes the local package when its recorded commit differs from the executable |
@@ -212,7 +212,7 @@ rules; adopted choices describe the current template.
 | Code | Monaspace Neon |
 | Math | New Computer Modern Math |
 
-The installer does not install fonts. Download `ypst-fonts.tar.xz` from the `0.1.0` release and extract it, or use the checkout fonts; pass the resulting font directory with `--font-path` for PDF. The archive includes Georgia as the original `georgi32.exe` installer with its EULA, not as extracted font files. Review its terms before use or redistribution. To extract Georgia from the release archive without downloading it again, run `python <extracted-dir>/download-georgia.py --archive <extracted-dir>/Georgia/georgi32.exe --license <extracted-dir>/Georgia/EULA.html --destination <extracted-dir>/Georgia/extracted`. Linux extraction requires `cabextract` or 7-Zip. The release also provides `ypst-fonts.tar.xz.sha256` for integrity checking.
+The installer does not install fonts. Download `ypst-fonts.tar.xz` from the latest rolling release and extract it, or use the checkout fonts; pass the resulting font directory with `--font-path` for PDF. The archive includes Georgia as the original `georgi32.exe` installer with its EULA, not as extracted font files. Review its terms before use or redistribution. To extract Georgia from the release archive without downloading it again, run `python <extracted-dir>/download-georgia.py --archive <extracted-dir>/Georgia/georgi32.exe --license <extracted-dir>/Georgia/EULA.html --destination <extracted-dir>/Georgia/extracted`. Linux extraction requires `cabextract` or 7-Zip. The release also provides `ypst-fonts.tar.xz.sha256` for integrity checking.
 
 Standalone HTML loads Monaspace Neon for code from jsDelivr and falls back to Consolas, Menlo, or a system monospace font. Site output uses a shared local font file. Other fonts use locally installed faces and fall back to system fonts when unavailable. Code uses 13px in HTML and 6.25pt in PDF.
 
@@ -261,7 +261,7 @@ Windows PowerShell:
 irm https://raw.githubusercontent.com/jay-waves/ypst/main/install.ps1 | iex
 ```
 
-Linux installs into `~/.local/bin`; Windows installs into `%LOCALAPPDATA%/Programs/ypst`. Neither script modifies PATH; add the installation directory yourself if needed. Set `INSTALL_DIR` to override the destination. The release tag is updated in place by CI, so rerunning downloads the newest published build even when the version number stays the same.
+Linux installs into `~/.local/bin`; Windows installs into `%LOCALAPPDATA%/Programs/ypst`. Neither script modifies PATH; add the installation directory yourself if needed. Set `INSTALL_DIR` to override the destination. Downloads use GitHub’s stable `releases/latest/download/` URLs, so rerunning installs the newest published build even though the package version stays at `0.1.0`.
 
 To choose a Windows destination while using `iex`:
 

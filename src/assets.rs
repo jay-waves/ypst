@@ -1,9 +1,4 @@
-use rquickjs::{CatchResultExt, Context, Function, Runtime};
-use std::{
-    fs,
-    path::Path,
-    time::{Duration, Instant},
-};
+use std::{fs, path::Path, time::Duration};
 use typst_syntax::{
     LinkedNode, Source, SyntaxNode,
     ast::{self, AstNode},
@@ -11,71 +6,6 @@ use typst_syntax::{
 
 fn range_of(root: &LinkedNode<'_>, wanted: &SyntaxNode) -> Option<std::ops::Range<usize>> {
     root.find(wanted.span()).map(|node| node.range())
-}
-const CSS_NUMBER_FORMAT: &str = include_str!("../vendor/intl.js");
-
-// Keep each invocation isolated while sharing the resource-limit policy.
-fn render_runtime() -> rquickjs::Result<Runtime> {
-    let runtime = Runtime::new()?;
-    runtime.set_memory_limit(256 * 1024 * 1024);
-    runtime.set_max_stack_size(4 * 1024 * 1024);
-    let deadline = Instant::now() + Duration::from_secs(10);
-    runtime.set_interrupt_handler(Some(Box::new(move || Instant::now() >= deadline)));
-    Ok(runtime)
-}
-
-/// Highlight literal block raw nodes in the main source before HTML compilation.
-pub fn highlight_code(source: &str) -> Result<String, String> {
-    let parsed = Source::detached(source);
-    let linked = LinkedNode::new(parsed.root());
-    let mut blocks = Vec::new();
-    fn visit(node: &LinkedNode<'_>, blocks: &mut Vec<(std::ops::Range<usize>, String, String)>) {
-        if let Some(raw) = node.get().cast::<ast::Raw>() {
-            if raw.block()
-                && node
-                    .parent()
-                    .is_some_and(|p| p.kind() == typst_syntax::SyntaxKind::Markup)
-            {
-                blocks.push((
-                    node.range(),
-                    raw.lines()
-                        .map(|line| line.get().as_str())
-                        .collect::<Vec<_>>()
-                        .join("\n"),
-                    raw.lang().map_or("", |lang| lang.get().as_str()).to_owned(),
-                ));
-            }
-            return;
-        }
-        for child in node.children() {
-            visit(&child, blocks);
-        }
-    }
-    visit(&linked, &mut blocks);
-    if blocks.is_empty() {
-        return Ok(source.to_owned());
-    }
-    let runtime = render_runtime().map_err(|e| e.to_string())?;
-    let context = Context::full(&runtime).map_err(|e| e.to_string())?;
-    context.with(|ctx| {
-        let result = (|| -> rquickjs::Result<String> {
-            ctx.eval::<(), _>(CSS_NUMBER_FORMAT)?;
-            ctx.eval::<(), _>(include_str!("../vendor/highlight.js"))?;
-            let render: Function = ctx.globals().get("highlightTypst")?;
-            let mut output = source.to_owned();
-            for (range, text, language) in blocks.into_iter().rev() {
-                let mut replacement: String = render.call((text, language))?;
-                let before = source[range.clone()]
-                    .bytes()
-                    .filter(|b| *b == b'\n')
-                    .count();
-                replacement.push_str(&"\n".repeat(before));
-                output.replace_range(range, &replacement);
-            }
-            Ok(output)
-        })();
-        result.catch(&ctx).map_err(|e| format!("highlight.js: {e}"))
-    })
 }
 
 fn image_extension(bytes: &[u8]) -> Option<&'static str> {
@@ -241,16 +171,6 @@ where
 mod tests {
     use super::*;
     #[test]
-    fn intl_number_format_handles_grouping_and_rounding() {
-        let runtime = Runtime::new().unwrap();
-        let context = Context::full(&runtime).unwrap();
-        context.with(|ctx| {
-            ctx.eval::<(), _>(CSS_NUMBER_FORMAT).unwrap();
-            let result: String = ctx.eval("new Intl.NumberFormat('en-US', {useGrouping: true, maximumFractionDigits: 2}).format(1234.567)").unwrap();
-            assert_eq!(result, "1,234.57");
-        });
-    }
-    #[test]
     fn url_images_use_temporary_files_and_reuse_downloads() {
         let dir = tempfile::tempdir().unwrap();
         let root = fs::canonicalize(dir.path()).unwrap();
@@ -331,24 +251,6 @@ mod tests {
         let error = result.unwrap_err();
         assert!(error.contains("unsupported image format"));
         assert!(error.starts_with(&format!("{}:1:1: error:", root.join("n.typ").display())));
-    }
-    #[test]
-    fn highlights_static_blocks_and_preserves_plain_text() {
-        std::thread::Builder::new()
-            .stack_size(16 * 1024 * 1024)
-            .spawn(|| {
-                let source =
-                    "```js\nconst x = \"<tag>\";\n```\n\n```unknown\na < b & c\n```\n`inline`";
-                let output = highlight_code(source).unwrap();
-                assert!(output.contains("hljs-keyword"));
-                assert!(output.contains(r#"#text("<")#text("tag")#text(">")"#));
-                assert!(output.contains("a < b & c"));
-                assert!(output.contains("`inline`"));
-                assert_eq!(source.lines().count(), output.lines().count());
-            })
-            .unwrap()
-            .join()
-            .unwrap();
     }
     #[test]
     fn leaves_mermaid_calls_to_typst() {

@@ -1,0 +1,32 @@
+%YAML 1.2
+---
+name: WebAssembly
+file_extensions: [wat, wast, wasm]
+scope: source.wasm
+contexts:
+  main:
+    - match: ';;.*$'
+      scope: comment.line.wasm
+    - match: '\(;'
+      push: comment
+    - match: '"'
+      push:
+        - meta_scope: string.quoted.double.wasm
+        - match: '\\.'
+          scope: constant.character.escape.wasm
+        - match: '"'
+          pop: true
+    - match: '\$[\w!#$%&*+./:<=>?@~^-]+'
+      scope: variable.other.wasm
+    - match: '\b(i32|i64|f32|f64|v128|funcref|externref)\b'
+      scope: storage.type.wasm
+    - match: '\b(module|func|param|result|local|global|memory|table|import|export|data|elem|start|type|mut|block|loop|if|then|else|end|return|call|unreachable|nop|drop|select)\b|\b[\w]+\.[\w.]+\b'
+      scope: keyword.control.wasm
+    - match: '[+-]?\b(0x[\da-fA-F]+|\d+(\.\d+)?)\b'
+      scope: constant.numeric.wasm
+  comment:
+    - meta_scope: comment.block.wasm
+    - match: '\(;'
+      push: comment
+    - match: ';\)'
+      pop: true

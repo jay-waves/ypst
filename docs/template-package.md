@@ -56,5 +56,5 @@ packaging and SVG glyph deduplication are not included.
 
 The asset inventory in `typst.toml` describes the source checkout, including
 fonts and build resources distributed separately; it is not an archive file list.
-This archive has no ypst binary, Node.js dependencies, or QuickJS runtime.
+This archive contains only the standalone template, without the ypst binary.
 The package version remains `0.1.0`; later releases may update its contents.

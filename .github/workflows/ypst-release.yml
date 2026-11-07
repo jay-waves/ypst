@@ -1,4 +1,4 @@
-name: Build and update ypst 0.1.0
+name: Build and publish ypst rolling release
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ypst-release-0.1.0
+  group: ypst-release-rolling
   cancel-in-progress: true
 
 permissions:
@@ -30,11 +30,6 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 26
-      - run: npm ci
-      - run: npm run build:assets
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -96,7 +91,7 @@ jobs:
           retention-days: 7
 
   release:
-    name: Update 0.1.0 release
+    name: Publish rolling release
     needs: [build, fonts, template]
     runs-on: ubuntu-latest
     permissions:
@@ -109,17 +104,24 @@ jobs:
         with:
           path: release-assets
           merge-multiple: true
-      - name: Point 0.1.0 tag at this build
-        run: |
-          git tag --force 0.1.0 "$GITHUB_SHA"
-          git push --force origin refs/tags/0.1.0
-      - name: Create or update release assets
+      - name: Publish current build and remove previous releases
         env:
           GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
-          if gh release view 0.1.0 >/dev/null 2>&1; then
-            gh release edit 0.1.0 --title 'ypst 0.1.0' --notes "Built from commit $GITHUB_SHA."
-          else
-            gh release create 0.1.0 --verify-tag --title 'ypst 0.1.0' --notes "Built from commit $GITHUB_SHA."
+          set -euo pipefail
+          tag="rolling-$(date -u +%Y%m%d)-${GITHUB_SHA:0:6}"
+          printf 'Built from commit %s.\nPackage version: 0.1.0.\n' "$GITHUB_SHA" > release-notes.txt
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --draft --target "$GITHUB_SHA" --title "ypst $tag" --notes-file release-notes.txt
           fi
-          gh release upload 0.1.0 release-assets/ypst-linux-x64 release-assets/ypst-windows-x64.exe release-assets/ypst-fonts.tar.xz release-assets/ypst-fonts.tar.xz.sha256 release-assets/ypst-template-0.1.0.zip release-assets/ypst-template-0.1.0.zip.sha256 release-assets/ypst-template-0.1.0.tar.xz release-assets/ypst-template-0.1.0.tar.xz.sha256 --clobber
+          gh release upload "$tag" release-assets/* --clobber
+          gh release edit "$tag" --draft=false --latest --title "ypst $tag" --notes-file release-notes.txt
+
+          # Keep the previous download available until the new release is complete.
+          releases=$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases" --jq '.[].tag_name')
+          while IFS= read -r old; do
+            if [[ "$old" != "$tag" && ( "$old" == "0.1.0" || "$old" == "rolling" || "$old" =~ ^rolling-[0-9]{8}-[0-9a-f]{6}$ ) ]]; then
+              gh release delete "$old" --yes --cleanup-tag
+            fi
+          done <<< "$releases"

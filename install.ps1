@@ -6,7 +6,7 @@ $target = Join-Path $installDir 'ypst.exe'
 $temp = Join-Path $installDir ([IO.Path]::GetRandomFileName())
 try {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    Invoke-WebRequest -UseBasicParsing -Headers @{ 'Cache-Control' = 'no-cache' } -Uri 'https://github.com/jay-waves/ypst/releases/download/0.1.0/ypst-windows-x64.exe' -OutFile $temp
+    Invoke-WebRequest -UseBasicParsing -Headers @{ 'Cache-Control' = 'no-cache' } -Uri 'https://github.com/jay-waves/ypst/releases/latest/download/ypst-windows-x64.exe' -OutFile $temp
     Move-Item -Force -LiteralPath $temp -Destination $target
 } finally {
     if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Force }

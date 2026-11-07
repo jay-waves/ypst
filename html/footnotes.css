@@ -50,3 +50,7 @@ body :is(.inline-footnote, .sidenote-panel) > .note-content { min-width: 0; over
 body .note-content > :first-child { margin-top: 0; }
 body .note-content > :last-child { margin-bottom: 0; }
 
+@media print {
+  body :is(.inline-footnote, .sidenote-panel)[hidden] { display: block !important; }
+  body .sidenote-marker { display: none; }
+}

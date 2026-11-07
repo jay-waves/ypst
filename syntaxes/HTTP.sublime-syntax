@@ -1,0 +1,18 @@
+%YAML 1.2
+---
+name: HTTP
+file_extensions: [http, https]
+scope: source.http
+contexts:
+  main:
+    - match: '\b(GET|HEAD|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE|PATCH)\b|HTTP/[\d.]+'
+      scope: keyword.control.http
+    - match: '^([\w-]+)(:)'
+      captures:
+        1: entity.other.attribute-name.http
+      push:
+        - meta_scope: string.unquoted.http
+        - match: '$'
+          pop: true
+    - match: '\b\d{3}\b'
+      scope: constant.numeric.http

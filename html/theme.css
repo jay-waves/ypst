@@ -509,3 +509,25 @@ body :is(.footnote-ref a, a.footnote-link, a.footnote-backref) { color: var(--md
 body li > p:first-child { margin-top: 0; }
 
 body :is(a, button, summary, [role="button"]):focus-visible { outline: 2px solid var(--md-accent); outline-offset: 2px; }
+
+@media print {
+  :root, body {
+    color-scheme: light !important;
+    --md-fg: #363733 !important;
+    --md-bg: #fff !important;
+    --md-muted: #73746e !important;
+    --md-border: #dfe1df !important;
+    --md-border-muted: #e9ebe9 !important;
+    --md-accent: #777c78 !important;
+    --md-code-fg: #363733 !important;
+    --md-code-bg: #e9ecea !important;
+    --md-pre-bg: #f4f5f4 !important;
+  }
+  body { width: auto; margin: 0; }
+  body pre, body pre > code { white-space: pre-wrap; }
+  body pre, body pre :is(code, span, tt) { overflow-wrap: anywhere; }
+  body pre, body table, body .display-equation { overflow: visible; }
+  body table { display: table; width: 100%; table-layout: fixed; }
+  body :is(th, td) { overflow-wrap: anywhere; }
+  body :is(h1, h2, h3, h4, h5, h6) { break-after: avoid; }
+}

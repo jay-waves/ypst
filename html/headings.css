@@ -12,23 +12,22 @@
     list-style: none;
 }
 
-.typst-document .heading-summary > :is(h1, h2, h3, h4, h5, h6)::after {
-    content: '¶';
+.typst-document .heading-toggle {
+    padding: 0;
+    border: 0;
+    background: transparent;
     margin-left: .35em;
     color: var(--md-muted);
-    font-family: inherit;
-    font-size: 1em;
+    font: inherit;
     font-weight: 400;
-    opacity: .22;
-    pointer-events: none;
-    transition: opacity .14s ease;
+    opacity: .4;
+    cursor: pointer;
 }
 
-.typst-document .heading-summary > :is(h1, h2, h3, h4, h5, h6):hover::after,
-.typst-document .heading-summary:focus-visible > :is(h1, h2, h3, h4, h5, h6)::after { opacity: .5; }
+.typst-document .heading-summary:hover .heading-toggle,
+.typst-document .heading-toggle:focus-visible { opacity: 1; }
 
-.typst-document section.heading-section.is-collapsed > .heading-summary
-    > :is(h1, h2, h3, h4, h5, h6)::after { opacity: .58; }
+.typst-document .is-collapsed > .heading-summary .heading-toggle { opacity: .65; }
 
 .typst-document .heading-summary > :is(h1, h2, h3, h4, h5, h6) {
     display: block;
@@ -53,3 +52,9 @@
     background-color: var(--md-border-muted);
 }
 
+
+@media print {
+    .typst-document section.heading-section.is-collapsed > :is(.heading-content, section.heading-section) { display: block; }
+    .typst-document .heading-toggle { display: none; }
+    .typst-document .heading-summary { break-after: avoid; }
+}

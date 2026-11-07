@@ -162,7 +162,7 @@ impl Prepared {
             text
         };
         let text = if html {
-            super::assets::highlight_code(&text)?
+            super::highlight::highlight_code(&text)?
         } else {
             text
         };
@@ -250,39 +250,32 @@ mod tests {
     }
     #[test]
     fn recursively_rewrites_local_files_and_preserves_relative_assets() {
-        std::thread::Builder::new()
-            .stack_size(16 * 1024 * 1024)
-            .spawn(|| {
-                let dir = tempfile::tempdir().unwrap();
-                let root = fs::canonicalize(dir.path()).unwrap();
-                fs::create_dir(root.join("chapter")).unwrap();
-                fs::write(
-                    root.join("main.typ"),
-                    "#include \"chapter/body.typ\"\n#import \"chapter/body.typ\" as body",
-                )
-                .unwrap();
-                fs::write(
-                    root.join("chapter/body.typ"),
-                    "```js\nconst x = 1;\n```\n#image(\"picture.svg\")",
-                )
-                .unwrap();
-                let prepared = Prepared::new(&root.join("main.typ"), &root, true).unwrap();
-                assert_eq!(prepared.files.len(), 1);
-                let file = &prepared.files[0];
-                assert_eq!(file.path().parent(), Some(root.join("chapter").as_path()));
-                let text = fs::read_to_string(file.path()).unwrap();
-                assert!(text.contains("hljs-keyword"));
-                assert!(text.contains("#image(\"picture.svg\")"));
-                assert_eq!(prepared.text.matches(".ypst-source-").count(), 2);
-                assert!(
-                    fs::read_to_string(root.join("chapter/body.typ"))
-                        .unwrap()
-                        .starts_with("```js")
-                );
-            })
-            .unwrap()
-            .join()
-            .unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let root = fs::canonicalize(dir.path()).unwrap();
+        fs::create_dir(root.join("chapter")).unwrap();
+        fs::write(
+            root.join("main.typ"),
+            "#include \"chapter/body.typ\"\n#import \"chapter/body.typ\" as body",
+        )
+        .unwrap();
+        fs::write(
+            root.join("chapter/body.typ"),
+            "```js\nconst x = 1;\n```\n#image(\"picture.svg\")",
+        )
+        .unwrap();
+        let prepared = Prepared::new(&root.join("main.typ"), &root, true).unwrap();
+        assert_eq!(prepared.files.len(), 1);
+        let file = &prepared.files[0];
+        assert_eq!(file.path().parent(), Some(root.join("chapter").as_path()));
+        let text = fs::read_to_string(file.path()).unwrap();
+        assert!(text.contains("syntax-keyword"));
+        assert!(text.contains("#image(\"picture.svg\")"));
+        assert_eq!(prepared.text.matches(".ypst-source-").count(), 2);
+        assert!(
+            fs::read_to_string(root.join("chapter/body.typ"))
+                .unwrap()
+                .starts_with("```js")
+        );
     }
     #[test]
     fn rejects_cycles_and_skips_packages_and_dynamic_paths() {

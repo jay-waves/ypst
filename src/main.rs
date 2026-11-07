@@ -1,4 +1,5 @@
 mod assets;
+mod highlight;
 mod preprocess;
 mod site_images;
 mod site_preview;
@@ -33,10 +34,6 @@ const PACKAGE_FILES: &[(&str, &str)] = &[
         include_str!("../fonts/LICENSE-Monaspace.txt"),
     ),
     ("html/highlight.css", HIGHLIGHT_CSS),
-    (
-        "html/LICENSE-FormatJS.txt",
-        include_str!("../vendor/FormatJS-LICENSE"),
-    ),
     ("html/footnotes.css", FOOTNOTES),
     ("html/headings.css", HEADINGS),
     ("html/links.js", include_str!("../html/links.js")),
@@ -677,22 +674,8 @@ fn run() -> Result<i32, String> {
         site: site.clone(),
         page: output.clone(),
     });
-    let prepared = std::thread::scope(|scope| {
-        std::thread::Builder::new()
-            .name("typst-preprocess".into())
-            .stack_size(16 * 1024 * 1024)
-            .spawn_scoped(scope, || {
-                preprocess::Prepared::with_site_images(
-                    &source,
-                    &project_root,
-                    !pdf,
-                    site_images.as_ref(),
-                )
-            })
-            .map_err(|e| e.to_string())?
-            .join()
-            .map_err(|_| "preprocessor thread failed".to_string())?
-    })?;
+    let prepared =
+        preprocess::Prepared::with_site_images(&source, &project_root, !pdf, site_images.as_ref())?;
     let processed = &prepared.text;
     if pdf {
         let entry = changed_entry(&source, &source_text, processed)?;

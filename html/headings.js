@@ -15,7 +15,7 @@
 
     const updateAvailability = () => syncHeadingSections(root);
 
-    children.forEach(node => {
+    children.forEach((node, index) => {
         const heading = node.nodeType === Node.ELEMENT_NODE && /^H[1-6]$/.test(node.tagName) ? node : null;
         if (!heading) {
             (stack.at(-1)?.content || root).append(node);
@@ -37,12 +37,19 @@
 
         const summary = document.createElement('div');
         summary.className = 'heading-summary';
-        summary.setAttribute('role', 'button');
         summary.append(heading);
         section.append(summary);
 
         const content = document.createElement('div');
         content.className = 'heading-content';
+        content.id = `ypst-heading-content-${index}`;
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'heading-toggle';
+        button.textContent = '¶';
+        button.setAttribute('aria-label', `Toggle section: ${title}`);
+        button.setAttribute('aria-controls', content.id);
+        heading.append(button);
         section.append(content);
         (stack.at(-1)?.content || root).append(section);
         stack.push({ level, content });
@@ -62,32 +69,9 @@
     };
 
     root.addEventListener('click', event => {
-        const link = event.target.closest('a[href]');
-        const interactive = event.target.closest('a[href], button, input, select, textarea, summary, [role="button"]:not(.heading-summary)');
+        const button = event.target.closest('.heading-toggle');
         const heading = event.target.closest('.heading-summary > :is(h1,h2,h3,h4,h5,h6)');
-        const summary = heading?.parentElement;
-        if (summary && !interactive && summary.getAttribute('aria-disabled') !== 'true') {
-            toggle(summary);
-            return;
-        }
-
-        if (!link) return;
-        const fragment = sameDocumentFragment(link);
-        if (fragment === null) return;
-        const target = document.getElementById(fragment);
-        if (!target || !root.contains(target)) return;
-        for (let section = target?.closest('.heading-section'); section;
-            section = section.parentElement.closest('.heading-section')) {
-            section.classList.remove('is-collapsed');
-        }
-        updateAvailability();
-    });
-
-    root.addEventListener('keydown', event => {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        const summary = event.target.closest('.heading-summary');
-        if (!summary || event.target !== summary || summary.getAttribute('aria-disabled') === 'true') return;
-        event.preventDefault();
-        toggle(summary);
+        const interactive = event.target.closest('a[href], button, input, select, textarea, summary, [role="button"]');
+        if (button || (heading && !interactive)) toggle((button || heading).closest('.heading-summary'));
     });
 })();
