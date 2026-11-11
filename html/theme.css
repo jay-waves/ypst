@@ -467,6 +467,12 @@ body .ypst-math-svg {
    Let the document theme control those paths so dark mode remains legible. */
 body .ypst-math-svg [fill] { fill: currentColor !important; }
 body .ypst-math-svg [stroke] { stroke: currentColor !important; }
+/* Older Typst output does not receive the helper class; equation frames use
+   these direct <use> elements instead. */
+body .display-equation > svg use,
+body :is(p, h1, h2, h3, h4, h5, h6, li, strong, em, a, td, th) > svg use {
+  fill: currentColor !important;
+}
 body :is(p, h1, h2, h3, h4, h5, h6, li, strong, em, a, td, th) > svg {
   display: inline-block !important;
   vertical-align: baseline;
