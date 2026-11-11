@@ -7,7 +7,11 @@ $temp = Join-Path $installDir ([IO.Path]::GetRandomFileName())
 try {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     $cacheBust = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-    Invoke-WebRequest -UseBasicParsing -Headers @{ 'Cache-Control' = 'no-cache' } -Uri "https://github.com/jay-waves/ypst/releases/latest/download/ypst-windows-x64.exe?cachebust=$cacheBust" -OutFile $temp
+    $headers = @{ 'Accept' = 'application/vnd.github+json'; 'User-Agent' = 'ypst-installer'; 'Cache-Control' = 'no-cache' }
+    $release = Invoke-RestMethod -Headers $headers -Uri "https://api.github.com/repos/jay-waves/ypst/releases/latest?cachebust=$cacheBust"
+    $asset = $release.assets | Where-Object { $_.name -eq 'ypst-windows-x64.exe' } | Select-Object -First 1
+    if (-not $asset) { throw "Latest release $($release.tag_name) has no ypst-windows-x64.exe asset." }
+    Invoke-WebRequest -UseBasicParsing -Headers $headers -Uri "$($asset.browser_download_url)?cachebust=$cacheBust" -OutFile $temp
     Move-Item -Force -LiteralPath $temp -Destination $target
 } finally {
     if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Force }
