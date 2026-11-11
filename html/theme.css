@@ -458,7 +458,15 @@ body .markdown-alert.markdown-alert-caution { border-left-color: var(--md-danger
 body .markdown-alert.markdown-alert-caution .markdown-alert-title { color: var(--md-danger); }
 
 /* Typst emits inline frames as block SVGs; keep them in the text line. */
-body .ypst-math-svg { overflow: visible; display: block; }
+body .ypst-math-svg {
+  overflow: visible;
+  display: block;
+  color: var(--md-fg);
+}
+/* Typst exports equation glyphs as SVG paths with a baked-in fill color.
+   Let the document theme control those paths so dark mode remains legible. */
+body .ypst-math-svg [fill] { fill: currentColor !important; }
+body .ypst-math-svg [stroke] { stroke: currentColor !important; }
 body :is(p, h1, h2, h3, h4, h5, h6, li, strong, em, a, td, th) > svg {
   display: inline-block !important;
   vertical-align: baseline;

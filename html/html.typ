@@ -26,7 +26,6 @@
     show math.equation.where(block: false): it => context { if target() == "html" { box(html.frame(it)) } else { it } }
     show math.equation.where(block: true): it => context {
         if target() != "html" { return it }
-        set text(fill: rgb("#363733"))
         let formula = html.frame(math.equation(math.display(it.body), block: false, numbering: none))
         html.div(class: "display-equation", [
             #formula
