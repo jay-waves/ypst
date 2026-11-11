@@ -19,4 +19,5 @@ try {
 & $target install
 if ($LASTEXITCODE -ne 0) { throw 'ypst install failed.' }
 Write-Host "Installed ypst to $target"
+& $target --version
 Write-Host "PATH was not modified. Add $installDir to PATH to run ypst from any directory."

@@ -10,4 +10,5 @@ chmod 755 "$tmp"
 mv -f "$tmp" "$install_dir/ypst"
 "$install_dir/ypst" install
 echo "Installed ypst to $install_dir/ypst"
+"$install_dir/ypst" --version
 case ":$PATH:" in *":$install_dir:"*) ;; *) echo "Add $install_dir to PATH to run ypst from any directory." ;; esac
