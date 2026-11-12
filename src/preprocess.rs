@@ -272,13 +272,22 @@ mod tests {
         assert_eq!(Prepared::new(&entry, &root, false).unwrap().text, source);
         let output = root.join("out.html");
         fs::write(root.join("prepared.typ"), &prepared.text).unwrap();
-        let result = std::process::Command::new("typst")
+        let result = match std::process::Command::new("typst")
             .args(["compile", "--features", "html", "--root"])
             .arg(&root)
             .arg(root.join("prepared.typ"))
             .arg(&output)
             .output()
-            .expect("typst required for HTML anchor check");
+        {
+            Ok(result) => result,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                // Release builders need only Rust. The preprocessing assertions
+                // above still run; only the external HTML compilation is skipped.
+                eprintln!("skipping HTML compilation: typst is not installed");
+                return;
+            }
+            Err(error) => panic!("could not run typst for HTML anchor check: {error}"),
+        };
         assert!(
             result.status.success(),
             "{}",
