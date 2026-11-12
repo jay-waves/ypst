@@ -46,10 +46,6 @@ const PACKAGE_FILES: &[(&str, &str)] = &[
         "html/line_navigation.js",
         include_str!("../html/line_navigation.js"),
     ),
-    (
-        "html/COMPATIBILITY.md",
-        include_str!("../html/COMPATIBILITY.md"),
-    ),
 ];
 
 fn package_directory(

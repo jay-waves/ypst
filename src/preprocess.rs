@@ -71,7 +71,11 @@ impl Prepared {
             }
         }
         visit(&LinkedNode::new(parsed.root()), &mut references);
-        let mut edits = Vec::new();
+        let mut edits = if html && self.active.len() == 1 {
+            line_anchors(&parsed)
+        } else {
+            Vec::new()
+        };
         for (range, name, bare) in references {
             if name.starts_with('@') {
                 if html && name.starts_with("@preview/cetz:") {
@@ -149,6 +153,7 @@ impl Prepared {
             }
         }
         let mut text = source;
+        edits.sort_by_key(|(range, _)| range.start);
         for (range, value) in edits.into_iter().rev() {
             text.replace_range(range, &value);
         }
@@ -167,9 +172,135 @@ impl Prepared {
     }
 }
 
+/// Sparse anchors refer only to the entry source, before any rewriting.
+/// Deliberately stay in top-level markup: reusable content and included files
+/// can be rendered multiple times and would produce duplicate HTML IDs.
+fn line_anchors(source: &Source) -> Vec<(std::ops::Range<usize>, String)> {
+    let root = LinkedNode::new(source.root());
+    let mut reserved = BTreeSet::new();
+    fn labels(node: &LinkedNode<'_>, out: &mut BTreeSet<String>) {
+        if let Some(label) = node.get().cast::<ast::Label>() {
+            out.insert(label.get().to_owned());
+        }
+        for child in node.children() {
+            labels(&child, out);
+        }
+    }
+    labels(&root, &mut reserved);
+    let mut edits = Vec::new();
+    let mut start = true;
+    for expr in source.root().cast::<ast::Markup>().unwrap().exprs() {
+        let span = match expr {
+            ast::Expr::Parbreak(_) => {
+                start = true;
+                continue;
+            }
+            ast::Expr::Space(_) => continue,
+            ast::Expr::Heading(heading) => {
+                start = true;
+                heading.body().span()
+            }
+            ast::Expr::Text(_)
+            | ast::Expr::Strong(_)
+            | ast::Expr::Emph(_)
+            | ast::Expr::Link(_)
+            | ast::Expr::Ref(_)
+            | ast::Expr::Escape(_)
+            | ast::Expr::Shorthand(_)
+            | ast::Expr::SmartQuote(_)
+                if start =>
+            {
+                start = false;
+                expr.span()
+            }
+            // Code directives do not consume the first visible text position.
+            // Raw, math and list internals are intentionally left alone.
+            _ => continue,
+        };
+        let Some(node) = root.find(span) else {
+            continue;
+        };
+        let offset = node.range().start;
+        let line = source.lines().byte_to_line(offset).unwrap() + 1;
+        let id = format!("L{line}");
+        if !reserved.insert(id.clone()) {
+            continue;
+        }
+        edits.push((offset..offset, format!(
+            "#html.elem(\"span\", attrs: (id: \"{id}\", \"data-line\": \"{line}\", class: \"source-line-anchor\"))"
+        )));
+    }
+    edits
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn entry_line_anchors_preserve_original_positions_and_compile() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = fs::canonicalize(dir.path()).unwrap();
+        let entry = root.join("main.typ");
+        let source = concat!(
+            "#let value = 1\r\n",
+            "= 标题\r\n",
+            "中文正文\r\n",
+            "继续正文\r\n",
+            "\r\n",
+            "*强调* 开头\r\n",
+            "\r\n",
+            "// 注释\r\n",
+            "末段\r\n",
+            "\r\n",
+            "#include \"body.typ\"\r\n",
+            "#let reusable = [隐藏内容]\r\n",
+            "\r\n",
+            "保留标签 <L14>\r\n",
+        );
+        fs::write(&entry, source).unwrap();
+        fs::write(root.join("body.typ"), "= Included\n\nIncluded paragraph").unwrap();
+        let prepared = Prepared::new(&entry, &root, true).unwrap();
+        for line in [2, 3, 6, 9] {
+            assert!(prepared.text.contains(&format!("id: \"L{line}\"")));
+        }
+        assert_eq!(prepared.text.matches("source-line-anchor").count(), 4);
+        assert!(
+            prepared.files.is_empty(),
+            "included source must stay unchanged"
+        );
+        assert!(prepared.text.contains("#include \"body.typ\""));
+        assert_eq!(Prepared::new(&entry, &root, false).unwrap().text, source);
+        let output = root.join("out.html");
+        fs::write(root.join("prepared.typ"), &prepared.text).unwrap();
+        let result = std::process::Command::new("typst")
+            .args(["compile", "--features", "html", "--root"])
+            .arg(&root)
+            .arg(root.join("prepared.typ"))
+            .arg(&output)
+            .output()
+            .expect("typst required for HTML anchor check");
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        let html = fs::read_to_string(output).unwrap();
+        for line in [2, 3, 6, 9] {
+            assert!(html.contains(&format!("id=\"L{line}\"")));
+        }
+        assert_eq!(html.matches("source-line-anchor").count(), 4);
+    }
+
+    #[test]
+    fn anchors_skip_raw_math_and_reusable_content() {
+        let source = Source::detached(
+            "#let body = [hidden]\n\n```typ\n= raw heading\n\nraw text\n```\n\n$ x $\n\n正文",
+        );
+        let edits = line_anchors(&source);
+        assert_eq!(edits.len(), 1);
+        assert!(edits[0].1.contains("id: \"L11\""));
+    }
+
     #[test]
     fn cetz_imports_render_in_html_without_changing_pdf_sources() {
         if std::process::Command::new("typst")

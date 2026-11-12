@@ -23,10 +23,10 @@ FILES = {
         "html/footnotes.js",
         "html/headings.js",
         "html/line_navigation.js",
-        "html/COMPATIBILITY.md",
     )
 }
-FILES["README.md"] = ROOT / "docs/template-package.md"
+for name in ("README.md", "YPST.md", "GLOSSARY.md"):
+    FILES[name] = ROOT / name
 
 
 def package(output: Path):
