@@ -720,11 +720,29 @@ fn run() -> Result<i32, String> {
             "ypst-template-bundle=true",
             "--input",
             &format!("ypst-template-assets-prefix={prefix}"),
+            "--input",
+            &format!(
+                "ypst-template-title={}",
+                source
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("Document")
+            ),
         ]);
         entry = Some(temp);
     } else {
         entry = changed_entry(&source, &source_text, processed)?;
         compiler.args(["--format", "html", "--features", "html"]);
+        compiler.args([
+            "--input",
+            &format!(
+                "ypst-template-title={}",
+                source
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("Document")
+            ),
+        ]);
     }
     if !pass
         .iter()
@@ -857,6 +875,7 @@ mod tests {
         assert!(template.contains("https://cdn.jsdelivr.net/gh/githubnext/monaspace@v1.400/"));
         assert!(!template.contains("read(\"monaspace.css\")"));
         assert!(THEME.contains("\"Monaspace Neon\", Consolas, Menlo, ui-monospace, monospace"));
+        assert!(template.contains("document.title = \" + repr(title)"));
     }
 
     #[test]

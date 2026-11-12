@@ -76,6 +76,7 @@
     // wrapper marks bundle mode with a private compiler input.
     let bundled = sys.inputs.at("ypst-template-bundle", default: "false") == "true"
     let assets = sys.inputs.at("ypst-template-assets-prefix", default: "assets/")
+    let title = sys.inputs.at("ypst-template-title", default: "Document")
     if bundled {
         html.elem("link", attrs: (rel: "stylesheet", href: assets + "theme.css", "data-theme": theme))
     } else {
@@ -84,8 +85,10 @@
     }
     block(html.div(class: "typst-document", body))
     if bundled {
+        html.script("document.title = " + repr(title) + ";")
         html.script(src: assets + "theme.js")
     } else {
-        html.script("(() => {\n" + read("links.js") + "\n" + read("footnotes.js") + "\n" + read("headings.js") + "\n" + read("line_navigation.js") + "\n})();")
+        html.script("document.title = " + repr(title) + ";\n" +
+            "(() => {\n" + read("links.js") + "\n" + read("footnotes.js") + "\n" + read("headings.js") + "\n" + read("line_navigation.js") + "\n})();")
     }
 }
