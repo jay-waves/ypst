@@ -95,6 +95,8 @@ the local service on port 8765. Rerun it after edits; open pages reload.
 The service is shared with cmrak. Use
 `ypst serve --site-root _site --port 8765` to host an existing site.
 
+Generated HTML pages use a `TY` browser tab icon.
+
 ```sh
 ypst serve note.typ --fragment L42
 ypst serve note.typ --fragment section

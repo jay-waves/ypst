@@ -3,9 +3,6 @@
 use regex::{Captures, Regex};
 use std::{
     collections::{HashMap, HashSet},
-    fs,
-    io::Write,
-    path::Path,
     sync::LazyLock,
 };
 
@@ -20,7 +17,7 @@ fn valid_svg(svg: &str) -> bool {
     }
 }
 
-fn optimize(html: &str) -> String {
+pub fn optimize(html: &str) -> String {
     if html.contains("data-equation-glyphs=\"\"") {
         return html.to_owned();
     }
@@ -127,20 +124,6 @@ fn optimize(html: &str) -> String {
     } else {
         html.to_owned()
     }
-}
-
-pub fn optimize_file(path: &Path) -> Result<(), String> {
-    let html = fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?;
-    let output = optimize(&html);
-    if output != html {
-        let mut temp = tempfile::NamedTempFile::new_in(path.parent().unwrap_or(Path::new(".")))
-            .map_err(|e| e.to_string())?;
-        temp.write_all(output.as_bytes())
-            .map_err(|e| e.to_string())?;
-        temp.persist(path)
-            .map_err(|e| format!("write {}: {e}", path.display()))?;
-    }
-    Ok(())
 }
 
 #[cfg(test)]

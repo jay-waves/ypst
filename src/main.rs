@@ -782,9 +782,28 @@ fn run() -> Result<i32, String> {
     if !status.success() {
         return Ok(status.code().unwrap_or(1));
     }
-    svg_glyphs::optimize_file(&target)?;
+    finish_html(&target)?;
     Ok(0)
 }
+
+fn finish_html(path: &Path) -> Result<(), String> {
+    let html = fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?;
+    let output = svg_glyphs::optimize(&html).replacen(
+        "</head>",
+        concat!(include_str!("../html/favicon.html"), "</head>"),
+        1,
+    );
+    if output != html {
+        let mut temp = tempfile::NamedTempFile::new_in(path.parent().unwrap_or(Path::new(".")))
+            .map_err(|e| e.to_string())?;
+        temp.write_all(output.as_bytes())
+            .map_err(|e| e.to_string())?;
+        temp.persist(path)
+            .map_err(|e| format!("write {}: {e}", path.display()))?;
+    }
+    Ok(())
+}
+
 fn is_source_diagnostic(message: &str) -> bool {
     regex::Regex::new(r"^.+:[0-9]+:[0-9]+: (?:error|warning):")
         .unwrap()
