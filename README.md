@@ -20,12 +20,16 @@ Windows PowerShell:
 irm https://raw.githubusercontent.com/jay-waves/ypst/main/install.ps1 | iex
 ```
 
-Installers download the latest rolling release and install the template.
-Linux uses `~/.local/bin`; Windows uses `%LOCALAPPDATA%/Programs/ypst`.
-Add that directory to PATH if needed. Set `INSTALL_DIR` (PowerShell:
-`$env:INSTALL_DIR`) to choose another destination. Rerun to update.
-The template package version remains `0.1.0`; `ypst --version` identifies
-the executable's build commit. Fonts are installed separately.
+Installers download the latest rolling release. If `ypst` is on PATH, the
+installer force-stops processes running that executable and replaces it in
+place. Otherwise it installs to `~/.local/bin` on Linux or
+`%LOCALAPPDATA%/Programs/ypst` on Windows. Set `INSTALL_DIR` (PowerShell:
+`$env:INSTALL_DIR`) to override that destination.
+Linux saves the PATH update in the shell startup configuration. Open a new
+terminal to pick it up. Windows updates the user PATH and the current
+PowerShell session.
+ypst also installs the template at package version `0.1.0`.
+`ypst --version` identifies the executable build commit. Fonts are installed separately.
 
 ## Write and compile
 
